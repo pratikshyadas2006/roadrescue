@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:rr/theme/app_colors.dart';
+import 'login_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -9,99 +10,176 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        automaticallyImplyLeading: false,
-        elevation: 0,
-        title: Row(
-          children: [
-            Builder(
-              builder: (context) => IconButton(
-                icon: const Icon(Icons.menu, color: AppColors.secondary, size: 22),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                onPressed: () => Scaffold.of(context).openDrawer(),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Container(
-              padding: const EdgeInsets.all(4),
-              decoration: const BoxDecoration(
-                color: Colors.white24,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.minor_crash_rounded,
-                color: AppColors.secondary,
-                size: 18,
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Text(
-              'Road Rescue',
-              style: TextStyle(
-                color: AppColors.secondary, 
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
-            ),
-          ],
+  backgroundColor: AppColors.primary,
+  automaticallyImplyLeading: false,
+  elevation: 0,
+  title: Row(
+    children: [
+      Builder(
+        builder: (context) => IconButton(
+          icon: const Icon(
+            Icons.menu,
+            color: AppColors.secondary,
+            size: 22,
+          ),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          onPressed: () => Scaffold.of(context).openDrawer(),
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12.0),
-            child: Center(
-              child: SizedBox(
-                height: 32,
-                child: TextButton(
-                  onPressed: () {},
-                  style: TextButton.styleFrom(
-                    backgroundColor: AppColors.secondary,
-                    foregroundColor: AppColors.primary,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                  child: const Text(
-                    'LOGIN',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                  ),
-                ),
+      ),
+      const SizedBox(width: 12),
+      ClipOval(
+        child: Image.asset(
+          'assets/images/logo.jpeg',
+          width: 32,
+          height: 32,
+          fit: BoxFit.cover,
+        ),
+      ),
+      const SizedBox(width: 8),
+      const Text(
+        'Road Rescue',
+        style: TextStyle(
+          color: AppColors.secondary,
+          fontWeight: FontWeight.w600,
+          fontSize: 19,
+          letterSpacing: 0.3,
+        ),
+      ),
+    ],
+  ),
+  actions: [
+    Padding(
+      padding: const EdgeInsets.only(right: 20),
+      child: Center(
+        child: SizedBox(
+          width: 100,
+          height: 42,
+          child: TextButton(
+            
+              onPressed: () {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => const LoginScreen(),
+    ),
+  );
+},
+            style: TextButton.styleFrom(
+              backgroundColor: AppColors.secondary,
+              foregroundColor: AppColors.primary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text(
+              'LOGIN',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
               ),
             ),
           ),
-        ],
+        ),
       ),
+    ),
+  ],
+),
       drawer: const Drawer(),
       body: SafeArea(
         child: Column(
           children: [
             // Top Welcome Banner Block
             Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: const BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(20),
-                  bottomRight: Radius.circular(20),
-                ),
-              ),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Hello Driver,',
-                    style: TextStyle(color: Colors.white70, fontSize: 14),
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    'How can we help you today?',
-                    style: TextStyle(color: AppColors.secondary, fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                ],
+  width: double.infinity,
+  padding: const EdgeInsets.symmetric(
+    horizontal: 22,
+    vertical: 18,
+  ),
+  decoration: const BoxDecoration(
+    gradient: LinearGradient(
+      colors: [
+        Color(0xFF0B1F3A),
+        Color(0xFF123A63),
+      ],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    ),
+    borderRadius: BorderRadius.only(
+      bottomLeft: Radius.circular(24),
+      bottomRight: Radius.circular(24),
+    ),
+  ),
+  child: Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      const Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Good morning, Driver 👋',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 14,
               ),
             ),
+            SizedBox(height: 5),
+            Text(
+              'Ready for a safer journey?',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 19,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 5),
+            Text(
+              'Road Rescue is here when you need it.',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(width: 12),
+      Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 10,
+          vertical: 7,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.successGreen.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: AppColors.successGreen,
+          ),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.shield_outlined,
+              color: AppColors.successGreen,
+              size: 15,
+            ),
+            SizedBox(width: 5),
+            Text(
+              'Protection Ready',
+              style: TextStyle(
+                color: AppColors.successGreen,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  ),
+),
             
             // Grid Area presenting 5 perfectly uniform small squares
             Expanded(
