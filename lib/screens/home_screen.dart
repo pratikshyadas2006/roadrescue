@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:rr/theme/app_colors.dart';
 import 'login_screen.dart';
+import 'profile_screen.dart';
+import 'request_history_screen.dart';
+import 'emergency_contacts_screen.dart';
+
+
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -85,10 +90,133 @@ class HomeScreen extends StatelessWidget {
     ),
   ],
 ),
-      drawer: const Drawer(),
-      body: SafeArea(
+      drawer: Drawer(
+  child: ListView(
+    padding: EdgeInsets.zero,
+    children: [
+      DrawerHeader(
+        decoration: const BoxDecoration(
+          color: AppColors.primary,
+        ),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            ClipOval(
+              child: Image.asset(
+                'assets/images/logo.jpeg',
+                width: 60,
+                height: 60,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Road Rescue',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Drive Safe. We\'re Here.',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 13,
+              ),
+            ),
+          ],
+
+        ),
+      ),
+
+      ListTile(
+  leading: const Icon(Icons.person_outline),
+  title: const Text('Profile'),
+  onTap: () {
+    Navigator.pop(context);
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ProfileScreen(),
+      ),
+    );
+  },
+),
+
+const Divider(),
+
+ListTile(
+  leading: const Icon(Icons.history),
+  title: const Text('Request History'),
+  onTap: () {
+    Navigator.pop(context);
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RequestHistoryScreen(),
+      ),
+    );
+  },
+),
+
+ListTile(
+  leading: const Icon(Icons.contact_phone_outlined),
+  title: const Text('Emergency Contacts'),
+  onTap: () {
+    Navigator.pop(context);
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EmergencyContactsScreen(),
+      ),
+    );
+  },
+),
+
+ListTile(
+  leading: const Icon(Icons.notifications_none),
+  title: const Text('Settings'),
+  
+onTap: () {},
+),
+
+
+ListTile(
+  leading: const Icon(Icons.help_outline),
+  title: const Text('Help & Support'),
+  onTap: () {},
+),
+
+ListTile(
+  leading: const Icon(Icons.info_outline),
+  title: const Text('About Road Rescue'),
+  onTap: () {},
+),
+
+const Divider(),
+
+ListTile(
+  leading: const Icon(Icons.logout, color: Colors.red),
+  title: const Text(
+    'Logout',
+    style: TextStyle(color: Colors.red),
+  ),
+  onTap: () {},
+),
+    ],
+  ),
+      ),
+body: SafeArea(
+  child: Column(
+    children: [
+
+      
             // Top Welcome Banner Block
             Container(
   width: double.infinity,
