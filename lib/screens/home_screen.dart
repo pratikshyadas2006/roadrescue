@@ -4,6 +4,7 @@ import 'login_screen.dart';
 import 'profile_screen.dart';
 import 'request_history_screen.dart';
 import 'emergency_contacts_screen.dart';
+import 'settings_screen.dart';
 
 
 
@@ -182,21 +183,15 @@ ListTile(
 ListTile(
   leading: const Icon(Icons.notifications_none),
   title: const Text('Settings'),
-  
-onTap: () {},
-),
-
-
-ListTile(
-  leading: const Icon(Icons.help_outline),
-  title: const Text('Help & Support'),
-  onTap: () {},
-),
-
-ListTile(
-  leading: const Icon(Icons.info_outline),
-  title: const Text('About Road Rescue'),
-  onTap: () {},
+  onTap: () {
+    Navigator.pop(context);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SettingsScreen(),
+      ),
+    );
+  },
 ),
 
 const Divider(),
@@ -445,3 +440,4 @@ body: SafeArea(
     );
   }
 }
+
