@@ -60,7 +60,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => ChangePasswordScreen()),
+                MaterialPageRoute(builder: (context) => const ChangePasswordScreen()),
               );
             },
           ),
@@ -70,7 +70,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => PrivacyPolicyScreen()),
+                MaterialPageRoute(builder: (context) => const PrivacyPolicyScreen()),
               );
             },
           ),
@@ -80,7 +80,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => TermsScreen()),
+                MaterialPageRoute(builder: (context) => const TermsScreen()),
               );
             },
           ),
@@ -92,7 +92,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => HelpSupportScreen()),
+                MaterialPageRoute(builder: (context) => const HelpSupportScreen()),
               );
             },
           ),
@@ -102,7 +102,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => AboutScreen()),
+                MaterialPageRoute(builder: (context) => const AboutScreen()),
               );
             },
           ),
@@ -177,7 +177,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ? Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.grey))
               : null,
           value: value,
-          activeColor: AppColors.successGreen,
+          activeThumbColor: AppColors.successGreen,
           onChanged: onChanged,
         ),
       ),

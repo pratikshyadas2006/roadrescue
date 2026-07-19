@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:rr/theme/app_colors.dart';
 
 class EmergencyContactsScreen extends StatelessWidget {
-   EmergencyContactsScreen({super.key});
+  const EmergencyContactsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
