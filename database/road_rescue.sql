@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jul 20, 2026 at 10:40 AM
+-- Generation Time: Jul 25, 2026 at 05:00 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -97,6 +97,22 @@ CREATE TABLE `road_rescue_status` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `sos_requests`
+--
+
+CREATE TABLE `sos_requests` (
+  `sos_id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `latitude` decimal(10,8) NOT NULL,
+  `longitude` decimal(11,8) NOT NULL,
+  `location_address` varchar(255) DEFAULT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'Pending',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `users`
 --
 
@@ -149,6 +165,13 @@ ALTER TABLE `road_rescue_status`
   ADD KEY `user_id` (`user_id`);
 
 --
+-- Indexes for table `sos_requests`
+--
+ALTER TABLE `sos_requests`
+  ADD PRIMARY KEY (`sos_id`),
+  ADD KEY `user_id` (`user_id`);
+
+--
 -- Indexes for table `users`
 --
 ALTER TABLE `users`
@@ -182,6 +205,12 @@ ALTER TABLE `request_hostory`
 --
 ALTER TABLE `road_rescue_status`
   MODIFY `status_id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `sos_requests`
+--
+ALTER TABLE `sos_requests`
+  MODIFY `sos_id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `users`
@@ -222,6 +251,12 @@ ALTER TABLE `request_hostory`
 --
 ALTER TABLE `road_rescue_status`
   ADD CONSTRAINT `road_rescue_status_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON UPDATE CASCADE;
+
+--
+-- Constraints for table `sos_requests`
+--
+ALTER TABLE `sos_requests`
+  ADD CONSTRAINT `sos_requests_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON UPDATE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
