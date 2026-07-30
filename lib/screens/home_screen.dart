@@ -9,9 +9,33 @@ import 'vehicle_breakdown_screen.dart';
 import 'sos_screen.dart';
 import 'ai_diagnosis_screen.dart';
 import 'nearby_services_screen.dart';
+import 'package:rr/services/session_manager.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  String userName = "Login";
+
+  @override
+  void initState() {
+    super.initState();
+    loadUser();
+  }
+
+  Future<void> loadUser() async {
+    final user = await SessionManager.getUserDetails();
+
+    if (!mounted) return;
+
+    setState(() {
+      userName = user["full_name"] ?? "Login";
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,45 +69,58 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            const Text(
-              'Road Rescue',
-              style: TextStyle(
-                color: AppColors.secondary,
-                fontWeight: FontWeight.w600,
-                fontSize: 19,
-                letterSpacing: 0.3,
+            // Expanded prevents title from pushing into the actions area
+            const Expanded(
+              child: Text(
+                'Road Rescue',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: AppColors.secondary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 18,
+                  letterSpacing: 0.3,
+                ),
               ),
             ),
           ],
         ),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: 20),
+            padding: const EdgeInsets.only(right: 12),
             child: Center(
-              child: SizedBox(
-                width: 100,
-                height: 42,
-                child: TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const LoginScreen(),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 110),
+                child: SizedBox(
+                  height: 38,
+                  child: TextButton(
+                    onPressed: () async {
+  final updated = await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => const ProfileScreen(),
+    ),
+  );
+
+  if (updated == true) {
+    loadUser();
+  }
+},
+                    style: TextButton.styleFrom(
+                      backgroundColor: AppColors.secondary,
+                      foregroundColor: AppColors.primary,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    );
-                  },
-                  style: TextButton.styleFrom(
-                    backgroundColor: AppColors.secondary,
-                    foregroundColor: AppColors.primary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
                     ),
-                  ),
-                  child: const Text(
-                    'LOGIN',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
+                    child: Text(
+                      userName,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                 ),
@@ -135,15 +172,20 @@ class HomeScreen extends StatelessWidget {
             ListTile(
               leading: const Icon(Icons.person_outline),
               title: const Text('Profile'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ProfileScreen(),
-                  ),
-                );
-              },
+              onTap: () async {
+  Navigator.pop(context);
+
+  final updated = await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => const ProfileScreen(),
+    ),
+  );
+
+  if (updated == true) {
+    loadUser();
+  }
+},
             ),
             const Divider(),
             ListTile(
@@ -192,7 +234,18 @@ class HomeScreen extends StatelessWidget {
                 'Logout',
                 style: TextStyle(color: Colors.red),
               ),
-              onTap: () {},
+              onTap: () async {
+                await SessionManager.logout();
+
+                if (!context.mounted) return;
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const LoginScreen(),
+                  ),
+                  (route) => false,
+                );
+              },
             ),
           ],
         ),
@@ -200,7 +253,7 @@ class HomeScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            // Top Welcome Banner Block
+            // Top Welcome Banner
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(
@@ -292,7 +345,7 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
 
-            // Grid Area presenting 5 perfectly uniform small squares
+            // Main Grid
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
@@ -385,7 +438,6 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // Builder for rendering matching square shapes with stacked centered configurations
   Widget _buildSquareCard({
     required String title,
     required IconData icon,

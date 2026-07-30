@@ -1,8 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:rr/theme/app_colors.dart';
+import 'package:rr/services/session_manager.dart';
+import 'package:rr/screens/edit_profile_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  String fullName = "Loading...";
+  String email = "Loading...";
+  String phone = "Not Available";
+
+  @override
+  void initState() {
+    super.initState();
+    loadUser();
+  }
+
+  Future<void> loadUser() async {
+    final user = await SessionManager.getUserDetails();
+
+    if (!mounted) return;
+
+    setState(() {
+      fullName = user["full_name"] ?? "Unknown";
+      email = user["email"] ?? "Unknown";
+      phone = user["phone"] ?? "Not Available";
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -37,18 +67,18 @@ class ProfileScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 15),
-                  const Text(
-                    "Guest User",
-                    style: TextStyle(
+                  Text(
+                    fullName,
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 5),
-                  const Text(
-                    "guest@example.com",
-                    style: TextStyle(
+                  Text(
+                    email,
+                    style: const TextStyle(
                       color: Colors.white70,
                       fontSize: 14,
                     ),
@@ -56,40 +86,45 @@ class ProfileScreen extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 25),
-
             _buildTile(
               Icons.person_outline,
               "Full Name",
-              "Guest User",
+              fullName,
             ),
-
             _buildTile(
               Icons.email_outlined,
               "Email",
-              "guest@example.com",
+              email,
             ),
-
             _buildTile(
               Icons.phone_outlined,
               "Phone",
-              "+91 9876543210",
+              phone,
             ),
-
             _buildTile(
               Icons.location_on_outlined,
               "Location",
               "Mumbai, India",
             ),
-
             const SizedBox(height: 30),
-
             SizedBox(
               width: 220,
               height: 48,
               child: ElevatedButton.icon(
-                onPressed: () {},
+                onPressed: () async {
+                  final updated = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const EditProfileScreen(),
+                    ),
+                  );
+
+                  if (updated == true) {
+                    loadUser();
+                    Navigator.pop(context, true);
+                  }
+                },
                 icon: const Icon(Icons.edit),
                 label: const Text("Edit Profile"),
                 style: ElevatedButton.styleFrom(

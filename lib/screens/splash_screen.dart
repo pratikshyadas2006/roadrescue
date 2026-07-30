@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:rr/screens/home_screen.dart';
+import 'package:rr/screens/login_screen.dart';
+import 'package:rr/services/session_manager.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -13,8 +15,32 @@ class _SplashScreenState extends State<SplashScreen> {
   double _progressValue = 0.0;
   late Timer _progressTimer;
   late Timer _loadingTimer;
+  Timer? _navigationTimer;
 
   String _loadingText = "Loading";
+
+  Future<void> checkLoginStatus() async {
+    bool loggedIn = await SessionManager.isLoggedIn();
+    print("Splash Screen Logged In:$loggedIn");
+
+    if (!mounted) return;
+
+    if (loggedIn) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const HomeScreen(),
+        ),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const LoginScreen(),
+        ),
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -26,11 +52,13 @@ class _SplashScreenState extends State<SplashScreen> {
     _progressTimer = Timer.periodic(
       const Duration(milliseconds: tickDurationMs),
       (timer) {
+        if (!mounted) return;
+
         setState(() {
           if (_progressValue < 1.0) {
             _progressValue += 1.0 / totalTicks;
           } else {
-            _progressTimer.cancel();
+            timer.cancel();
           }
         });
       },
@@ -59,15 +87,8 @@ class _SplashScreenState extends State<SplashScreen> {
       },
     );
 
-    Timer(const Duration(seconds: 3), () {
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const HomeScreen(),
-          ),
-        );
-      }
+    _navigationTimer = Timer(const Duration(seconds: 3), () {
+      checkLoginStatus();
     });
   }
 
@@ -75,6 +96,7 @@ class _SplashScreenState extends State<SplashScreen> {
   void dispose() {
     _progressTimer.cancel();
     _loadingTimer.cancel();
+    _navigationTimer?.cancel();
     super.dispose();
   }
 
@@ -90,7 +112,6 @@ class _SplashScreenState extends State<SplashScreen> {
               fit: BoxFit.contain,
             ),
           ),
-
           Positioned(
             bottom: 90,
             left: 0,

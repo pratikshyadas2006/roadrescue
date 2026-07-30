@@ -1,13 +1,18 @@
 <?php
 
+header("Access-Control-Allow-Origin: *");
+header("Content-Type: application/json; charset=UTF-8");
+
 include("../config/db_connect.php");
 
+// Accept POST data
 $user_id = $_POST['user_id'] ?? '';
-$name = $_POST['name'] ?? '';
+$contact_name = $_POST['contact_name'] ?? '';
 $phone = $_POST['phone'] ?? '';
 $relationship = $_POST['relationship'] ?? '';
 
-if (empty($user_id) || empty($name) || empty($phone) || empty($relationship)) {
+// Validate
+if (empty($user_id) || empty($contact_name) || empty($phone) || empty($relationship)) {
     echo json_encode([
         "success" => false,
         "message" => "All fields are required"
@@ -15,10 +20,15 @@ if (empty($user_id) || empty($name) || empty($phone) || empty($relationship)) {
     exit();
 }
 
-$sql = "INSERT INTO emergency_contacts (user_id, name, phone, relationship)
-VALUES ('$user_id', '$name', '$phone', '$relationship')";
+// Insert using prepared statement
+$sql = "INSERT INTO emergency_contacts (user_id, contact_name, phone, relationship)
+VALUES (?, ?, ?, ?)";
 
-if (mysqli_query($conn, $sql)) {
+$stmt = $conn->prepare($sql);
+
+$stmt->bind_param("isss", $user_id, $contact_name, $phone, $relationship);
+
+if ($stmt->execute()) {
     echo json_encode([
         "success" => true,
         "message" => "Emergency Contact Added Successfully"
@@ -26,10 +36,11 @@ if (mysqli_query($conn, $sql)) {
 } else {
     echo json_encode([
         "success" => false,
-        "message" => "Failed to Add Contact"
+        "message" => $stmt->error
     ]);
 }
 
-mysqli_close($conn);
+$stmt->close();
+$conn->close();
 
 ?>

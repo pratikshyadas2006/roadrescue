@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:rr/theme/app_colors.dart';
+import 'package:rr/services/api_service.dart';
+import 'package:rr/services/session_manager.dart';
 
 /// Vehicle Breakdown flow:
 /// Step 1 -> pick vehicle type (Car / Bike)
@@ -66,23 +68,51 @@ class _VehicleBreakdownScreenState extends State<VehicleBreakdownScreen> {
     });
   }
 
-  void _submitRequest() {
-    final String issueText = _selectedIssue == 'Other'
-        ? _customIssueController.text.trim()
-        : _selectedIssue!;
+  Future<void> _submitRequest() async {
+
+  final String issueText = _selectedIssue == 'Other'
+      ? _customIssueController.text.trim()
+      : _selectedIssue!;
+
+
+  final user = await SessionManager.getUserDetails();
+
+
+  final result = await ApiService.sendBreakdownRequest(
+  userId: user["user_id"],
+  vehicleType: _selectedVehicle!,
+  issueType: issueText,
+  description: issueText,
+  latitude: "0",
+  longitude: "0",
+);
+
+  if (result["success"] == true) {
 
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(24),
+        ),
       ),
       builder: (context) => _RequestSentSheet(
         vehicle: _selectedVehicle!,
         issue: issueText,
       ),
     );
-  }
 
+  } else {
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(result["message"]),
+        backgroundColor: Colors.red,
+      ),
+    );
+
+  }
+}
   @override
   Widget build(BuildContext context) {
     return Scaffold(
