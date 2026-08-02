@@ -1,5 +1,23 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:rr/theme/app_colors.dart';
+
+/// Shared dark/light hybrid theme tokens — kept in sync with home_screen.dart.
+class _RRColors {
+  static const canvasTop = Color(0xFF0A1220);
+  static const canvasMid = Color(0xFF0F1B30);
+  static const canvasBottom = Color(0xFF16233D);
+  static const moonlight = Color(0xFF3A4C7A);
+  static const mistLavender = Color(0xFF8FA6FF);
+  static const aiViolet = Color(0xFFB388FF);
+  static const beaconAmber = Color(0xFFFFB020);
+  static const glassFill = Color(0x14FFFFFF);
+  static const glassFillHover = Color(0x1FFFFFFF);
+  static const glassBorder = Color(0x26FFFFFF);
+  static const glassHighlight = Color(0x4DFFFFFF);
+  static const textOnDark = Colors.white;
+  static const textMutedOnDark = Color(0xFFA9B4C4);
+}
 
 /// AI Vehicle Diagnosis screen.
 /// User picks a common symptom or types their own. A simulated AI response
@@ -113,47 +131,51 @@ class _AiDiagnosisScreenState extends State<AiDiagnosisScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: _RRColors.canvasTop,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
+        backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.secondary),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Row(
           children: [
-            const Icon(Icons.psychology_alt_outlined, color: AppColors.secondary, size: 20),
+            const Icon(Icons.psychology_alt_outlined, color: _RRColors.aiViolet, size: 20),
             const SizedBox(width: 8),
             const Text(
               'AI Diagnosis',
-              style: TextStyle(color: AppColors.secondary, fontWeight: FontWeight.bold, fontSize: 18),
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
             ),
           ],
         ),
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: _messages.isEmpty
-                  ? _buildEmptyState()
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: _messages.length + (_isThinking ? 1 : 0),
-                      itemBuilder: (context, index) {
-                        if (index == _messages.length) {
-                          return const _ThinkingBubble();
-                        }
-                        final msg = _messages[index];
-                        return msg.isUser
-                            ? _UserBubble(text: msg.text)
-                            : _DiagnosisBubble(diagnosis: msg.diagnosis!);
-                      },
-                    ),
-            ),
-            _buildInputBar(),
-          ],
+      body: _RRCanvas(
+        child: SafeArea(
+          child: Column(
+            children: [
+              const SizedBox(height: 48), // clears the transparent app bar
+              Expanded(
+                child: _messages.isEmpty
+                    ? _buildEmptyState()
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _messages.length + (_isThinking ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          if (index == _messages.length) {
+                            return const _ThinkingBubble();
+                          }
+                          final msg = _messages[index];
+                          return msg.isUser
+                              ? _UserBubble(text: msg.text)
+                              : _DiagnosisBubble(diagnosis: msg.diagnosis!);
+                        },
+                      ),
+              ),
+              _buildInputBar(),
+            ],
+          ),
         ),
       ),
     );
@@ -169,22 +191,25 @@ class _AiDiagnosisScreenState extends State<AiDiagnosisScreen> {
             width: 72,
             height: 72,
             decoration: BoxDecoration(
-              color: Colors.purple.withValues(alpha: 0.12),
+              color: _RRColors.aiViolet.withValues(alpha: 0.16),
               shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(color: _RRColors.aiViolet.withValues(alpha: 0.3), blurRadius: 18),
+              ],
             ),
-            child: const Icon(Icons.psychology_alt_outlined, color: Colors.purple, size: 36),
+            child: const Icon(Icons.psychology_alt_outlined, color: _RRColors.aiViolet, size: 36),
           ),
           const SizedBox(height: 16),
           const Text(
             "Tell me what's wrong with your vehicle",
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.primary),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
           ),
           const SizedBox(height: 6),
           const Text(
             'This is guidance only — not a replacement\nfor a professional inspection.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 12, color: Colors.black45),
+            style: TextStyle(fontSize: 12, color: _RRColors.textMutedOnDark),
           ),
           const SizedBox(height: 24),
           Wrap(
@@ -192,12 +217,7 @@ class _AiDiagnosisScreenState extends State<AiDiagnosisScreen> {
             runSpacing: 8,
             alignment: WrapAlignment.center,
             children: _quickPrompts.map((p) {
-              return ActionChip(
-                label: Text(p, style: const TextStyle(fontSize: 12)),
-                backgroundColor: Colors.white,
-                side: const BorderSide(color: AppColors.border),
-                onPressed: () => _sendMessage(p),
-              );
+              return _QuickPromptChip(label: p, onTap: () => _sendMessage(p));
             }).toList(),
           ),
         ],
@@ -214,28 +234,83 @@ class _AiDiagnosisScreenState extends State<AiDiagnosisScreen> {
             child: TextField(
               controller: _controller,
               onSubmitted: _sendMessage,
+              style: const TextStyle(color: Colors.white),
+              cursorColor: _RRColors.aiViolet,
               decoration: InputDecoration(
                 hintText: 'Describe the problem...',
+                hintStyle: const TextStyle(color: _RRColors.textMutedOnDark),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: _RRColors.glassFill,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
-                  borderSide: const BorderSide(color: AppColors.border),
+                  borderSide: const BorderSide(color: _RRColors.glassBorder),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: const BorderSide(color: _RRColors.glassBorder),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: const BorderSide(color: _RRColors.aiViolet, width: 1.4),
                 ),
               ),
             ),
           ),
           const SizedBox(width: 8),
-          CircleAvatar(
-            radius: 22,
-            backgroundColor: AppColors.primary,
-            child: IconButton(
-              icon: const Icon(Icons.send_rounded, color: AppColors.secondary, size: 18),
-              onPressed: () => _sendMessage(_controller.text),
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(color: _RRColors.aiViolet.withValues(alpha: 0.4), blurRadius: 14),
+              ],
+            ),
+            child: CircleAvatar(
+              radius: 22,
+              backgroundColor: _RRColors.aiViolet,
+              child: IconButton(
+                icon: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+                onPressed: () => _sendMessage(_controller.text),
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Plain glass pill for the quick-prompt suggestions — built by hand
+/// instead of using ActionChip, since Flutter's default chip theming
+/// overrides custom background/label colors with its own light-surface
+/// tint, which made the white label text unreadable on a dark canvas.
+class _QuickPromptChip extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  const _QuickPromptChip({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            decoration: BoxDecoration(
+              color: _RRColors.glassFill,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _RRColors.glassBorder),
+            ),
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w500),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -268,12 +343,17 @@ class _UserBubble extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
         decoration: BoxDecoration(
-          color: AppColors.primary,
+          gradient: const LinearGradient(
+            colors: [_RRColors.aiViolet, Color(0xFF8A5CF6)],
+          ),
           borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(16),
             topRight: Radius.circular(16),
             bottomLeft: Radius.circular(16),
           ),
+          boxShadow: [
+            BoxShadow(color: _RRColors.aiViolet.withValues(alpha: 0.25), blurRadius: 12),
+          ],
         ),
         child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 14)),
       ),
@@ -292,8 +372,8 @@ class _ThinkingBubble extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: AppColors.border),
+          color: _RRColors.glassFill,
+          border: Border.all(color: _RRColors.glassBorder),
           borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(16),
             topRight: Radius.circular(16),
@@ -307,7 +387,7 @@ class _ThinkingBubble extends StatelessWidget {
             child: SizedBox(
               width: 14,
               height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.purple),
+              child: CircularProgressIndicator(strokeWidth: 2, color: _RRColors.aiViolet),
             ),
           ),
         ),
@@ -324,71 +404,87 @@ class _DiagnosisBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     return Align(
       alignment: Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(16),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.82),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: AppColors.border),
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(16),
-            topRight: Radius.circular(16),
-            bottomRight: Radius.circular(16),
-          ),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 4)),
-          ],
+      child: ClipRRect(
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(16),
+          topRight: Radius.circular(16),
+          bottomRight: Radius.circular(16),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Possible Causes', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primary)),
-            const SizedBox(height: 6),
-            ...diagnosis.causes.map((c) => _bullet(c)),
-            const SizedBox(height: 12),
-            const Text('Basic Troubleshooting', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primary)),
-            const SizedBox(height: 6),
-            ...diagnosis.tips.map((t) => _bullet(t)),
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: diagnosis.callMechanic
-                    ? AppColors.emergencyRed.withValues(alpha: 0.1)
-                    : AppColors.successGreen.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(16),
+            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.82),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [_RRColors.glassFillHover, _RRColors.glassFill],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              child: Row(
-                children: [
-                  Icon(
-                    diagnosis.callMechanic ? Icons.warning_amber_rounded : Icons.check_circle_outline_rounded,
-                    size: 18,
-                    color: diagnosis.callMechanic ? AppColors.emergencyRed : AppColors.successGreen,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      diagnosis.callMechanic
-                          ? 'Recommended: call a mechanic now'
-                          : 'You can likely continue, but get it checked soon',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: diagnosis.callMechanic ? AppColors.emergencyRed : AppColors.successGreen,
-                      ),
+              border: Border.all(color: _RRColors.glassBorder),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+                bottomRight: Radius.circular(16),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Possible Causes', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _RRColors.aiViolet)),
+                const SizedBox(height: 6),
+                ...diagnosis.causes.map((c) => _bullet(c)),
+                const SizedBox(height: 12),
+                const Text('Basic Troubleshooting', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _RRColors.aiViolet)),
+                const SizedBox(height: 6),
+                ...diagnosis.tips.map((t) => _bullet(t)),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: diagnosis.callMechanic
+                        ? AppColors.emergencyRed.withValues(alpha: 0.14)
+                        : AppColors.successGreen.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: diagnosis.callMechanic
+                          ? AppColors.emergencyRed.withValues(alpha: 0.4)
+                          : AppColors.successGreen.withValues(alpha: 0.4),
                     ),
                   ),
-                ],
-              ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        diagnosis.callMechanic ? Icons.warning_amber_rounded : Icons.check_circle_outline_rounded,
+                        size: 18,
+                        color: diagnosis.callMechanic ? AppColors.emergencyRed : AppColors.successGreen,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          diagnosis.callMechanic
+                              ? 'Recommended: call a mechanic now'
+                              : 'You can likely continue, but get it checked soon',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: diagnosis.callMechanic ? AppColors.emergencyRed : AppColors.successGreen,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'This is guidance only, not a professional inspection.',
+                  style: TextStyle(fontSize: 10, color: _RRColors.textMutedOnDark, fontStyle: FontStyle.italic),
+                ),
+              ],
             ),
-            const SizedBox(height: 6),
-            const Text(
-              'This is guidance only, not a professional inspection.',
-              style: TextStyle(fontSize: 10, color: Colors.black38, fontStyle: FontStyle.italic),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -402,12 +498,71 @@ class _DiagnosisBubble extends StatelessWidget {
         children: [
           const Padding(
             padding: EdgeInsets.only(top: 5),
-            child: Icon(Icons.circle, size: 5, color: Colors.black45),
+            child: Icon(Icons.circle, size: 5, color: _RRColors.textMutedOnDark),
           ),
           const SizedBox(width: 8),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 12.5, color: Colors.black87))),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 12.5, color: Colors.white))),
         ],
       ),
+    );
+  }
+}
+
+/// Dark gradient canvas + soft moonlight glows, shared across screens.
+class _RRCanvas extends StatelessWidget {
+  final Widget child;
+  const _RRCanvas({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [_RRColors.canvasTop, _RRColors.canvasMid, _RRColors.canvasBottom],
+              stops: [0.0, 0.45, 1.0],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+          ),
+        ),
+        Positioned(
+          top: -140,
+          right: -110,
+          child: Container(
+            width: 360,
+            height: 360,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  _RRColors.aiViolet.withValues(alpha: 0.14),
+                  _RRColors.aiViolet.withValues(alpha: 0.0),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          bottom: -130,
+          left: -100,
+          child: Container(
+            width: 300,
+            height: 300,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  _RRColors.mistLavender.withValues(alpha: 0.10),
+                  _RRColors.mistLavender.withValues(alpha: 0.0),
+                ],
+              ),
+            ),
+          ),
+        ),
+        child,
+      ],
     );
   }
 }

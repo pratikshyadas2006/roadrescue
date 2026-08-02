@@ -1,8 +1,21 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:rr/screens/home_screen.dart';
 import 'package:rr/screens/login_screen.dart';
 import 'package:rr/services/session_manager.dart';
+
+/// Shared dark/light hybrid theme tokens — kept in sync with home_screen.dart.
+class _RRColors {
+  static const canvasTop = Color(0xFF0A1220);
+  static const canvasMid = Color(0xFF0F1B30);
+  static const canvasBottom = Color(0xFF16233D);
+  static const mistLavender = Color(0xFF8FA6FF);
+  static const beaconAmber = Color(0xFFFFB020);
+  static const glassFill = Color(0x1FFFFFFF);
+  static const glassBorder = Color(0x26FFFFFF);
+  static const textMutedOnDark = Color(0xFFA9B4C4);
+}
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -103,9 +116,40 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0B1F3A),
+      backgroundColor: _RRColors.canvasTop,
       body: Stack(
         children: [
+          // ---- BASE CANVAS ----
+          // Matches the gradient used on every other screen, so the splash
+          // doesn't feel like a different app in the half-second before the
+          // image paints in.
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [_RRColors.canvasTop, _RRColors.canvasMid, _RRColors.canvasBottom],
+                stops: [0.0, 0.45, 1.0],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+          ),
+          Positioned(
+            top: -140,
+            right: -100,
+            child: Container(
+              width: 380,
+              height: 380,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    _RRColors.mistLavender.withValues(alpha: 0.14),
+                    _RRColors.mistLavender.withValues(alpha: 0.0),
+                  ],
+                ),
+              ),
+            ),
+          ),
           Positioned.fill(
             child: Image.asset(
               'assets/images/newsplash.jpeg',
@@ -119,22 +163,46 @@ class _SplashScreenState extends State<SplashScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  _loadingText,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: 140,
-                  child: LinearProgressIndicator(
-                    value: _progressValue,
-                    backgroundColor: Colors.white24,
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                      Color(0xFFE53935),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: _RRColors.glassFill,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: _RRColors.glassBorder),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _loadingText,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            width: 140,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: _progressValue,
+                                minHeight: 5,
+                                backgroundColor: _RRColors.glassBorder,
+                                valueColor: const AlwaysStoppedAnimation<Color>(
+                                  _RRColors.beaconAmber,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

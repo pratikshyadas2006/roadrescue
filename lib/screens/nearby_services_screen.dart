@@ -1,5 +1,22 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:rr/theme/app_colors.dart';
+
+/// Shared dark/light hybrid theme tokens — kept in sync with home_screen.dart.
+class _RRColors {
+  static const canvasTop = Color(0xFF0A1220);
+  static const canvasMid = Color(0xFF0F1B30);
+  static const canvasBottom = Color(0xFF16233D);
+  static const moonlight = Color(0xFF3A4C7A);
+  static const mistLavender = Color(0xFF8FA6FF);
+  static const beaconAmber = Color(0xFFFFB020);
+  static const glassFill = Color(0x14FFFFFF);
+  static const glassFillHover = Color(0x1FFFFFFF);
+  static const glassBorder = Color(0x26FFFFFF);
+  static const glassHighlight = Color(0x4DFFFFFF);
+  static const textOnDark = Colors.white;
+  static const textMutedOnDark = Color(0xFFA9B4C4);
+}
 
 /// Nearby Services screen.
 /// Category tabs for Garages / Fuel Pumps / Hospitals / Police / Ambulance.
@@ -16,11 +33,11 @@ class _NearbyServicesScreenState extends State<NearbyServicesScreen> {
   int _selectedCategory = 0;
 
   final List<_Category> _categories = const [
-    _Category('Garages', Icons.car_repair_rounded, AppColors.primary),
-    _Category('Fuel Pumps', Icons.local_gas_station_rounded, Colors.orange),
+    _Category('Garages', Icons.car_repair_rounded, Color(0xFF5B8DEF)),
+    _Category('Fuel Pumps', Icons.local_gas_station_rounded, Color(0xFFFFA940)),
     _Category('Hospitals', Icons.local_hospital_rounded, AppColors.emergencyRed),
-    _Category('Police', Icons.local_police_rounded, Colors.blueGrey),
-    _Category('Ambulance', Icons.emergency_rounded, Colors.teal),
+    _Category('Police', Icons.local_police_rounded, Color(0xFF7C93B8)),
+    _Category('Ambulance', Icons.emergency_rounded, Color(0xFF4FD1C5)),
   ];
 
   // Placeholder results per category — replace with live API data.
@@ -59,84 +76,102 @@ class _NearbyServicesScreenState extends State<NearbyServicesScreen> {
     final category = _categories[_selectedCategory];
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: _RRColors.canvasTop,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
+        backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.secondary),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: const Text(
           'Nearby Services',
-          style: TextStyle(color: AppColors.secondary, fontWeight: FontWeight.bold, fontSize: 18),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
         ),
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Map placeholder — swap for GoogleMap widget wired to live location.
-            Container(
-              width: double.infinity,
-              height: 160,
-              margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              decoration: BoxDecoration(
-                color: Colors.blueGrey.shade50,
+      body: _RRCanvas(
+        child: SafeArea(
+          child: Column(
+            children: [
+              const SizedBox(height: 48), // clears the transparent app bar
+
+              // Map placeholder — swap for GoogleMap widget wired to live location.
+              ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.map_rounded, size: 36, color: Colors.blueGrey.shade300),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Map view — ${category.label} near you',
-                    style: TextStyle(fontSize: 12, color: Colors.blueGrey.shade400),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    width: double.infinity,
+                    height: 160,
+                    margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [category.color.withValues(alpha: 0.14), _RRColors.glassFill],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: _RRColors.glassBorder),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.map_rounded, size: 36, color: category.color),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Map view — ${category.label} near you',
+                          style: const TextStyle(fontSize: 12, color: _RRColors.textMutedOnDark),
+                        ),
+                      ],
+                    ),
                   ),
-                ],
+                ),
               ),
-            ),
 
-            // Category chip selector.
-            SizedBox(
-              height: 44,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: _categories.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (context, index) {
-                  final c = _categories[index];
-                  final bool selected = index == _selectedCategory;
-                  return ChoiceChip(
-                    label: Text(c.label, style: const TextStyle(fontSize: 12.5)),
-                    avatar: Icon(c.icon, size: 16, color: selected ? Colors.white : c.color),
-                    selected: selected,
-                    selectedColor: c.color,
-                    backgroundColor: Colors.white,
-                    labelStyle: TextStyle(color: selected ? Colors.white : Colors.black87, fontWeight: FontWeight.w600),
-                    side: BorderSide(color: selected ? c.color : AppColors.border),
-                    onSelected: (_) => setState(() => _selectedCategory = index),
-                  );
-                },
+              // Category chip selector.
+              SizedBox(
+                height: 44,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: _categories.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    final c = _categories[index];
+                    final bool selected = index == _selectedCategory;
+                    return ChoiceChip(
+                      label: Text(c.label, style: const TextStyle(fontSize: 12.5)),
+                      avatar: Icon(c.icon, size: 16, color: selected ? const Color(0xFF0A1220) : c.color),
+                      selected: selected,
+                      selectedColor: c.color,
+                      backgroundColor: _RRColors.glassFill,
+                      labelStyle: TextStyle(
+                        color: selected ? const Color(0xFF0A1220) : Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      side: BorderSide(color: selected ? c.color : _RRColors.glassBorder),
+                      onSelected: (_) => setState(() => _selectedCategory = index),
+                    );
+                  },
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
 
-            // Results list.
-            Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                itemCount: _results.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final place = _results[index];
-                  return _PlaceCard(place: place, category: category);
-                },
+              // Results list.
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  itemCount: _results.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final place = _results[index];
+                    return _PlaceCard(place: place, category: category);
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -165,64 +200,151 @@ class _PlaceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 4)),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: category.color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(category.icon, color: category.color, size: 24),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(place.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primary)),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(Icons.star_rounded, size: 14, color: Colors.amber),
-                    const SizedBox(width: 2),
-                    Text('${place.rating}', style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                    const SizedBox(width: 8),
-                    Text('· ${place.distance}', style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                  ],
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Stack(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [category.color.withValues(alpha: 0.08), _RRColors.glassFill],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                const SizedBox(height: 2),
-                Text(place.status, style: TextStyle(fontSize: 11.5, color: AppColors.successGreen, fontWeight: FontWeight.w600)),
-              ],
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: _RRColors.glassBorder),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: category.color.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(color: category.color.withValues(alpha: 0.3), blurRadius: 10),
+                      ],
+                    ),
+                    child: Icon(category.icon, color: category.color, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(place.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(Icons.star_rounded, size: 14, color: _RRColors.beaconAmber),
+                            const SizedBox(width: 2),
+                            Text('${place.rating}', style: const TextStyle(fontSize: 12, color: _RRColors.textMutedOnDark)),
+                            const SizedBox(width: 8),
+                            Text('· ${place.distance}', style: const TextStyle(fontSize: 12, color: _RRColors.textMutedOnDark)),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(place.status, style: const TextStyle(fontSize: 11.5, color: AppColors.successGreen, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.directions_rounded, color: category.color),
+                        onPressed: () {},
+                        tooltip: 'Navigate',
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.call_rounded, color: AppColors.successGreen, size: 20),
+                        onPressed: () {},
+                        tooltip: 'Call',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              top: 0,
+              left: 12,
+              right: 12,
+              child: Container(
+                height: 1,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.transparent, _RRColors.glassHighlight, Colors.transparent],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Dark gradient canvas + soft moonlight glows, shared across screens.
+class _RRCanvas extends StatelessWidget {
+  final Widget child;
+  const _RRCanvas({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [_RRColors.canvasTop, _RRColors.canvasMid, _RRColors.canvasBottom],
+              stops: [0.0, 0.45, 1.0],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
             ),
           ),
-          Column(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.directions_rounded, color: AppColors.primary),
-                onPressed: () {},
-                tooltip: 'Navigate',
+        ),
+        Positioned(
+          top: -130,
+          right: -100,
+          child: Container(
+            width: 340,
+            height: 340,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  _RRColors.mistLavender.withValues(alpha: 0.15),
+                  _RRColors.mistLavender.withValues(alpha: 0.0),
+                ],
               ),
-              IconButton(
-                icon: const Icon(Icons.call_rounded, color: AppColors.successGreen, size: 20),
-                onPressed: () {},
-                tooltip: 'Call',
-              ),
-            ],
+            ),
           ),
-        ],
-      ),
+        ),
+        Positioned(
+          bottom: -120,
+          left: -110,
+          child: Container(
+            width: 300,
+            height: 300,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  _RRColors.beaconAmber.withValues(alpha: 0.07),
+                  _RRColors.beaconAmber.withValues(alpha: 0.0),
+                ],
+              ),
+            ),
+          ),
+        ),
+        child,
+      ],
     );
   }
 }
