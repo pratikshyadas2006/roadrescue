@@ -555,3 +555,48 @@ Entered Password: Riyanilesh@333
 DB Password: $2y$10$Cl/NuHYznUT/llK0My9E1epMuRgMHLPQQ3cO9CddL8SZjsaIU/PWW
 Verify: TRUE
 
+RAW: {"email":"riyachavan1512@gmail.com","password":"Riyanilesh@333"}
+POST: Array
+(
+)
+
+DATA: Array
+(
+    [email] => riyachavan1512@gmail.com
+    [password] => Riyanilesh@333
+)
+
+Entered Password: Riyanilesh@333
+DB Password: $2y$10$Cl/NuHYznUT/llK0My9E1epMuRgMHLPQQ3cO9CddL8SZjsaIU/PWW
+Verify: TRUE
+
+RAW: {"email":"riyachavan1512@gmail.com","password":"Riyachavan@333"}
+POST: Array
+(
+)
+
+DATA: Array
+(
+    [email] => riyachavan1512@gmail.com
+    [password] => Riyachavan@333
+)
+
+Entered Password: Riyachavan@333
+DB Password: $2y$10$Cl/NuHYznUT/llK0My9E1epMuRgMHLPQQ3cO9CddL8SZjsaIU/PWW
+Verify: FALSE
+
+RAW: {"email":"riyachavan1512@gmail.com","password":"Riyanilesh@333"}
+POST: Array
+(
+)
+
+DATA: Array
+(
+    [email] => riyachavan1512@gmail.com
+    [password] => Riyanilesh@333
+)
+
+Entered Password: Riyanilesh@333
+DB Password: $2y$10$Cl/NuHYznUT/llK0My9E1epMuRgMHLPQQ3cO9CddL8SZjsaIU/PWW
+Verify: TRUE
+
