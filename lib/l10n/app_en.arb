@@ -1,0 +1,19 @@
+{
+  "@@locale": "en",
+  "appName": "Road Rescue",
+  "settings": "Settings",
+  "language": "Language",
+  "profile": "Profile",
+  "requestHistory": "Request History",
+  "vehicleBreakdown": "Vehicle Breakdown",
+  "emergencyContacts": "Emergency Contacts",
+  "helpSupport": "Help & Support",
+  "about": "About Road Rescue",
+  "deleteAccount": "Delete Account",
+  "logout": "Logout",
+  "ready": "Ready",
+  "quickActions": "QUICK ACTIONS",
+  "sos": "SOS",
+  "aiDiagnosis": "AI Diagnosis",
+  "nearbyServices": "Nearby Services"
+}

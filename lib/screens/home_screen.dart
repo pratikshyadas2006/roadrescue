@@ -11,6 +11,7 @@ import 'sos_screen.dart';
 import 'ai_diagnosis_screen.dart';
 import 'nearby_services_screen.dart';
 import 'package:rr/services/session_manager.dart';
+import 'map_screen.dart';
 
 /// Dark/light hybrid theme tokens.
 /// The canvas stays dark (night-highway navy-black), but now carries a
@@ -482,7 +483,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         onTap: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => const NearbyServicesScreen()),
+                            MaterialPageRoute(builder: (context) => const MapScreen()),
                           );
                         },
                       ),

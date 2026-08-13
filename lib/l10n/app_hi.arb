@@ -1,0 +1,19 @@
+{
+  "@@locale": "hi",
+  "appName": "रोड रेस्क्यू",
+  "settings": "सेटिंग्स",
+  "language": "भाषा",
+  "profile": "प्रोफ़ाइल",
+  "requestHistory": "अनुरोध इतिहास",
+  "vehicleBreakdown": "वाहन खराबी",
+  "emergencyContacts": "आपातकालीन संपर्क",
+  "helpSupport": "सहायता और समर्थन",
+  "about": "रोड रेस्क्यू के बारे में",
+  "deleteAccount": "खाता हटाएँ",
+  "logout": "लॉगआउट",
+  "ready": "तैयार",
+  "quickActions": "त्वरित कार्य",
+  "sos": "एसओएस",
+  "aiDiagnosis": "एआई निदान",
+  "nearbyServices": "नज़दीकी सेवाएँ"
+}
