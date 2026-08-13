@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  static const String baseUrl = "http://192.168.1.104/roadrescue/road_rescue_api";
+  static const String baseUrl = "http://10.116.25.33/rr/road_rescue_api";
 
   // ================= REGISTER =================
   static Future<Map<String, dynamic>> registerUser({
@@ -128,8 +128,6 @@ class ApiService {
   }
 
 // ================= BREAKDOWN REQUEST =================
-// ================= BREAKDOWN REQUEST =================
-
 static Future<Map<String, dynamic>> sendBreakdownRequest({
   required int userId,
   required String vehicleType,
@@ -138,7 +136,6 @@ static Future<Map<String, dynamic>> sendBreakdownRequest({
   required String latitude,
   required String longitude,
 }) async {
-
   final url = Uri.parse("$baseUrl/breakdown/request_breakdown.php");
 
   try {
@@ -146,6 +143,7 @@ static Future<Map<String, dynamic>> sendBreakdownRequest({
       url,
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json",
       },
       body: {
         "user_id": userId.toString(),
@@ -157,12 +155,24 @@ static Future<Map<String, dynamic>> sendBreakdownRequest({
       },
     );
 
-    return jsonDecode(response.body);
+    // 🔍 PRINT RAW RESPONSE TO TERMINAL/DEBUG CONSOLE
+    print("--------------------------------------------------");
+    print("SERVER RESPONSE STATUS: ${response.statusCode}");
+    print("SERVER RAW RESPONSE: ${response.body}");
+    print("--------------------------------------------------");
 
+    try {
+      return jsonDecode(response.body);
+    } catch (_) {
+      return {
+        "success": false,
+        "message": "PHP Error Output: ${response.body.replaceAll(RegExp(r'<[^>]*>'), ' ')}"
+      };
+    }
   } catch (e) {
     return {
       "success": false,
-      "message": e.toString(),
+      "message": "Connection error: $e",
     };
   }
 }

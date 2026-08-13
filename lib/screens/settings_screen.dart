@@ -1,6 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:rr/l10n/app_localizations.dart';
 import 'package:rr/theme/app_colors.dart';
+import 'package:rr/providers/locale_provider.dart';
 import 'package:rr/screens/change_password_screen.dart';
 import 'package:rr/screens/privacy_policy_screen.dart';
 import 'package:rr/screens/terms_screen.dart';
@@ -31,19 +34,21 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool darkMode = false;
-
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final localeProvider = Provider.of<LocaleProvider>(context);
+    final currentLanguageCode = localeProvider.locale.languageCode;
+
     return Scaffold(
       backgroundColor: _RRColors.canvasTop,
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
-          'Settings',
-          style: TextStyle(
+        title: Text(
+          t.settings,
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w600,
             fontSize: 19,
@@ -57,17 +62,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.symmetric(vertical: 8),
             children: [
               _sectionTitle('App Preferences'),
-              _switchTile(
-                icon: Icons.dark_mode_outlined,
-                title: 'Dark Mode',
-                subtitle: 'Switch app theme',
-                value: darkMode,
-                onChanged: (val) => setState(() => darkMode = val),
-              ),
               _navTile(
                 icon: Icons.language_outlined,
-                title: 'Language',
-                trailingText: 'English',
+                title: t.language,
+                trailingText: currentLanguageCode == 'hi' ? 'हिंदी' : 'English',
                 onTap: () {
                   _showLanguagePicker(context);
                 },
@@ -108,7 +106,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _sectionTitle('Support'),
               _navTile(
                 icon: Icons.help_outline,
-                title: 'Help & Support',
+                title: t.helpSupport,
                 onTap: () {
                   Navigator.push(
                     context,
@@ -118,7 +116,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               _navTile(
                 icon: Icons.info_outline,
-                title: 'About Road Rescue',
+                title: t.about,
                 onTap: () {
                   Navigator.push(
                     context,
@@ -137,9 +135,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _showDeleteAccountDialog(context);
                     },
                     icon: const Icon(Icons.delete_outline, color: AppColors.emergencyRed),
-                    label: const Text(
-                      'Delete Account',
-                      style: TextStyle(color: AppColors.emergencyRed),
+                    label: Text(
+                      t.deleteAccount,
+                      style: const TextStyle(color: AppColors.emergencyRed),
                     ),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
@@ -187,28 +185,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _switchTile({
-    required IconData icon,
-    required String title,
-    String? subtitle,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return _GlassTile(
-      child: SwitchListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14),
-        secondary: Icon(icon, color: _RRColors.beaconAmber),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.white)),
-        subtitle: subtitle != null
-            ? Text(subtitle, style: const TextStyle(fontSize: 12, color: _RRColors.textMutedOnDark))
-            : null,
-        value: value,
-        activeThumbColor: AppColors.successGreen,
-        onChanged: onChanged,
-      ),
-    );
-  }
-
   Widget _navTile({
     required IconData icon,
     required String title,
@@ -234,20 +210,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => _SheetShell(
+      builder: (modalContext) => _SheetShell(
         child: SafeArea(
           top: false,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: _RRColors.glassBorder,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 8),
               ListTile(
-                title: const Text('English', style: TextStyle(color: Colors.white)),
-                onTap: () => Navigator.pop(context),
+                leading: const Icon(Icons.language, color: _RRColors.beaconAmber),
+                title: const Text('English', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
+                trailing: Provider.of<LocaleProvider>(modalContext).locale.languageCode == 'en'
+                    ? const Icon(Icons.check, color: _RRColors.beaconAmber)
+                    : null,
+                onTap: () {
+                  Provider.of<LocaleProvider>(modalContext, listen: false).setLocale(const Locale('en'));
+                  Navigator.pop(modalContext);
+                },
               ),
               ListTile(
-                title: const Text('हिंदी', style: TextStyle(color: Colors.white)),
-                onTap: () => Navigator.pop(context),
+                leading: const Icon(Icons.language, color: _RRColors.beaconAmber),
+                title: const Text('हिंदी (Hindi)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
+                trailing: Provider.of<LocaleProvider>(modalContext).locale.languageCode == 'hi'
+                    ? const Icon(Icons.check, color: _RRColors.beaconAmber)
+                    : null,
+                onTap: () {
+                  Provider.of<LocaleProvider>(modalContext, listen: false).setLocale(const Locale('hi'));
+                  Navigator.pop(modalContext);
+                },
               ),
+              const SizedBox(height: 16),
             ],
           ),
         ),
