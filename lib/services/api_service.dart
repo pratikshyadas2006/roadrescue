@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  static const String baseUrl = "http://10.116.25.33/rr/road_rescue_api";
+  static const String baseUrl = "http://10.215.170.33/rr/road_rescue_api";
 
   // ================= REGISTER =================
   static Future<Map<String, dynamic>> registerUser({
@@ -275,6 +275,74 @@ static Future<Map<String, dynamic>> getEmergencyContacts({
     );
 
     return jsonDecode(response.body);
+  } catch (e) {
+    return {
+      "success": false,
+      "message": "Connection error: $e",
+    };
+  }
+}
+
+
+// ================= SEND SOS =================
+static Future<Map<String, dynamic>> sendSos({
+  required int userId,
+  required double latitude,
+  required double longitude,
+  String? locationAddress,
+}) async {
+  final url = Uri.parse("$baseUrl/sos/send_sos.php");
+
+  try {
+    final response = await http.post(
+      url,
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json",
+      },
+      body: {
+        "user_id": userId.toString(),
+        "latitude": latitude.toString(),
+        "longitude": longitude.toString(),
+        "location_address": locationAddress ?? "",
+      },
+    );
+
+    print("--------------------------------------------------");
+    print("SOS SERVER RESPONSE STATUS: ${response.statusCode}");
+    print("SOS SERVER RAW RESPONSE: ${response.body}");
+    print("--------------------------------------------------");
+
+    return jsonDecode(response.body);
+  } catch (e) {
+    return {
+      "success": false,
+      "message": "Connection error: $e",
+    };
+  }
+}
+// ================= GET NOTIFICATIONS =================
+
+static Future<Map<String, dynamic>> getNotifications({
+  required int userId,
+}) async {
+
+  final url = Uri.parse(
+    "$baseUrl/notifications/get_notifications.php?user_id=$userId",
+  );
+
+  try {
+    final response = await http.get(
+      url,
+      headers: {
+        "Accept": "application/json",
+      },
+    );
+
+    print("NOTIFICATIONS RESPONSE: ${response.body}");
+
+    return jsonDecode(response.body);
+
   } catch (e) {
     return {
       "success": false,

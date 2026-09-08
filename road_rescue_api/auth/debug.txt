@@ -555,3 +555,93 @@ Entered Password: Riyanilesh@333
 DB Password: $2y$10$Cl/NuHYznUT/llK0My9E1epMuRgMHLPQQ3cO9CddL8SZjsaIU/PWW
 Verify: TRUE
 
+RAW: {"email":"pratikshyadas358@gmail.com","password":"_Rani@1234"}
+POST: Array
+(
+)
+
+DATA: Array
+(
+    [email] => pratikshyadas358@gmail.com
+    [password] => _Rani@1234
+)
+
+Entered Password: _Rani@1234
+DB Password: $2y$10$fI58QsWOd7OBRqOqhtxKqukfCu.aCkgODJAaAw00Zg.c6gm34HemC
+Verify: TRUE
+
+RAW: {"email":"abcd@gmail.com","password":"_Hi@1234"}
+POST: Array
+(
+)
+
+DATA: Array
+(
+    [email] => abcd@gmail.com
+    [password] => _Hi@1234
+)
+
+Entered Password: _Hi@1234
+DB Password: $2y$10$OPxQ4NCPPL5aLZA07wA.HO4KSWBRs34d5rLpnBftnLiXNA60/Zs3q
+Verify: TRUE
+
+RAW: {"email":"abcd@gmail.com","password":"_Hi@1234"}
+POST: Array
+(
+)
+
+DATA: Array
+(
+    [email] => abcd@gmail.com
+    [password] => _Hi@1234
+)
+
+Entered Password: _Hi@1234
+DB Password: $2y$10$OPxQ4NCPPL5aLZA07wA.HO4KSWBRs34d5rLpnBftnLiXNA60/Zs3q
+Verify: TRUE
+
+RAW: {"email":"abcd@gmail.com","password":"_Hi@1234"}
+POST: Array
+(
+)
+
+DATA: Array
+(
+    [email] => abcd@gmail.com
+    [password] => _Hi@1234
+)
+
+Entered Password: _Hi@1234
+DB Password: $2y$10$OPxQ4NCPPL5aLZA07wA.HO4KSWBRs34d5rLpnBftnLiXNA60/Zs3q
+Verify: TRUE
+
+RAW: {"email":"abcd@gmail.com","password":"_Hi@1234"}
+POST: Array
+(
+)
+
+DATA: Array
+(
+    [email] => abcd@gmail.com
+    [password] => _Hi@1234
+)
+
+Entered Password: _Hi@1234
+DB Password: $2y$10$OPxQ4NCPPL5aLZA07wA.HO4KSWBRs34d5rLpnBftnLiXNA60/Zs3q
+Verify: TRUE
+
+RAW: {"email":"abcd@gmail.com","password":"_Hi@1234"}
+POST: Array
+(
+)
+
+DATA: Array
+(
+    [email] => abcd@gmail.com
+    [password] => _Hi@1234
+)
+
+Entered Password: _Hi@1234
+DB Password: $2y$10$OPxQ4NCPPL5aLZA07wA.HO4KSWBRs34d5rLpnBftnLiXNA60/Zs3q
+Verify: TRUE
+
