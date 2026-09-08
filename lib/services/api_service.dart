@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  static const String baseUrl = "http://10.116.25.33/rr/road_rescue_api";
+  static const String baseUrl =
+    "http://10.175.184.187/roadrescue/road_rescue_api";
+
 
   // ================= REGISTER =================
   static Future<Map<String, dynamic>> registerUser({
