@@ -2,49 +2,59 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  static const String baseUrl = "http://10.215.170.33/rr/road_rescue_api";
+  static const String baseUrl = "http://10.153.89.128/rr/road_rescue_api";
 
   // ================= REGISTER =================
   static Future<Map<String, dynamic>> registerUser({
-    required String fullName,
-    required String email,
-    required String phone,
-    required String password,
-  }) async {
-    final url = Uri.parse("$baseUrl/auth/register.php");
+  required String fullName,
+  required String email,
+  required String phone,
+  required String password,
+}) async {
+  final url = Uri.parse("$baseUrl/auth/register.php");
+
+  try {
+    print("🚀 REGISTER REQUEST STARTED");
+    print("URL: $url");
+
+    final response = await http
+        .post(
+          url,
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+          },
+          body: jsonEncode({
+            "full_name": fullName,
+            "email": email,
+            "phone": phone,
+            "password": password,
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    print("--------------------------------------------------");
+    print("REGISTER SERVER STATUS: ${response.statusCode}");
+    print("REGISTER SERVER RESPONSE: ${response.body}");
+    print("--------------------------------------------------");
 
     try {
-      final response = await http.post(
-        url,
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-        },
-        body: jsonEncode({
-          "full_name": fullName,
-          "email": email,
-          "phone": phone,
-          "password": password,
-        }),
-      );
-
-      try {
-        return jsonDecode(response.body);
-      } catch (_) {
-        return {
-          "success": false,
-          "message":
-              "PHP Error Output: ${response.body.replaceAll(RegExp(r'<[^>]*>'), ' ')}"
-        };
-      }
-    } catch (e) {
+      return jsonDecode(response.body);
+    } catch (_) {
       return {
         "success": false,
-        "message": "Connection error: $e",
+        "message": "Invalid server response: ${response.body}",
       };
     }
-  }
+  } catch (e) {
+    print("❌ REGISTER ERROR: $e");
 
+    return {
+      "success": false,
+      "message": "Connection error: $e",
+    };
+  }
+}
   // ================= LOGIN =================
   static Future<Map<String, dynamic>> loginUser({
     required String email,
@@ -349,5 +359,17 @@ static Future<Map<String, dynamic>> getNotifications({
       "message": "Connection error: $e",
     };
   }
+}
+static Future<Map<String, dynamic>> deleteEmergencyContact({
+  required int contactId,
+}) async {
+  final response = await http.post(
+    Uri.parse("$baseUrl/emergency/delete_contact.php"),
+    body: {
+      "contact_id": contactId.toString(),
+    },
+  );
+
+  return jsonDecode(response.body);
 }
 }

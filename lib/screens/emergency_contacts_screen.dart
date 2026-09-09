@@ -52,6 +52,8 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
       userId: user["user_id"],
     );
 
+    if (!mounted) return;
+
     setState(() {
       _isLoading = false;
 
@@ -61,6 +63,60 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
         _errorMessage = response["message"] ?? "Something went wrong";
       }
     });
+  }
+
+  Future<void> _deleteContact(int contactId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Delete Contact"),
+          content: const Text(
+            "Are you sure you want to remove this emergency contact?",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text("Cancel"),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text(
+                "Delete",
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    // User pressed Cancel
+    if (confirm != true) return;
+
+    final response = await ApiService.deleteEmergencyContact(
+      contactId: contactId,
+    );
+
+    if (!mounted) return;
+
+    if (response["success"] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Emergency contact deleted successfully"),
+        ),
+      );
+
+      _loadContacts(); // Refresh contact list
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            response["message"] ?? "Failed to delete contact",
+          ),
+        ),
+      );
+    }
   }
 
   @override
@@ -147,9 +203,13 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
       itemBuilder: (context, index) {
         final contact = _contacts[index];
         return _ContactCard(
+          contactId: int.parse(contact["contact_id"].toString()),
           name: contact["contact_name"],
           relationship: contact["relationship"],
           phone: contact["phone"],
+          onDelete: (contactId) {
+            _deleteContact(contactId);
+          },
         );
       },
     );
@@ -157,11 +217,19 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
 }
 
 class _ContactCard extends StatelessWidget {
+  final int contactId;
   final String name;
   final String relationship;
   final String phone;
+  final Function(int) onDelete;
 
-  const _ContactCard({required this.name, required this.relationship, required this.phone});
+  const _ContactCard({
+    required this.contactId,
+    required this.name,
+    required this.relationship,
+    required this.phone,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -173,7 +241,10 @@ class _ContactCard extends StatelessWidget {
           width: double.infinity,
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [_RRColors.glassFillHover, _RRColors.glassFill],
+              colors: [
+                _RRColors.glassFillHover,
+                _RRColors.glassFill,
+              ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -190,17 +261,40 @@ class _ContactCard extends StatelessWidget {
                   color: _RRColors.beaconAmber.withValues(alpha: 0.16),
                   shape: BoxShape.circle,
                   boxShadow: [
-                    BoxShadow(color: _RRColors.beaconAmber.withValues(alpha: 0.3), blurRadius: 10),
+                    BoxShadow(
+                      color: _RRColors.beaconAmber.withValues(alpha: 0.3),
+                      blurRadius: 10,
+                    ),
                   ],
                 ),
-                child: const Icon(Icons.person, color: _RRColors.beaconAmber, size: 22),
+                child: const Icon(
+                  Icons.person,
+                  color: _RRColors.beaconAmber,
+                  size: 22,
+                ),
               ),
-              title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+              title: Text(
+                name,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
               subtitle: Text(
                 "$relationship\n$phone",
-                style: const TextStyle(color: _RRColors.textMutedOnDark),
+                style: const TextStyle(
+                  color: _RRColors.textMutedOnDark,
+                ),
               ),
               isThreeLine: true,
+              // 🗑️ DELETE BUTTON
+              trailing: IconButton(
+                icon: const Icon(
+                  Icons.delete_outline,
+                  color: Colors.redAccent,
+                ),
+                onPressed: () => onDelete(contactId),
+              ),
             ),
           ),
         ),

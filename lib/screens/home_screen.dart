@@ -20,7 +20,10 @@ import 'package:vibration/vibration.dart';
 import 'package:rr/screens/notifications_screen.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:rr/services/api_service.dart';
-
+import 'package:telephony/telephony.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:android_intent_plus/android_intent.dart';
 
 /// Dark/light hybrid theme tokens.
 /// The canvas stays dark (night-highway navy-black), but now carries a
@@ -361,7 +364,45 @@ void detectPossibleAccident() {
     },
   );
 }
+Future<void> sendSmsViaDefaultApp(
+  String phoneNumber,
+  String message,
+) async {
+  final intent = AndroidIntent(
+    action: 'android.intent.action.SENDTO',
+    data: 'smsto:$phoneNumber',
+    arguments: <String, dynamic>{
+      'sms_body': message,
+    },
+  );
+
+  try {
+    await intent.launch();
+    print("📱 Opening default SMS app for: $phoneNumber");
+  } catch (e) {
+    print("❌ Could not open SMS app: $e");
+  }
+}
 Future<void> handleEmergency() async {
+
+  print("🚨 HANDLE EMERGENCY STARTED");
+
+  final Telephony telephony = Telephony.instance;
+
+print("📱 Requesting SMS permission...");
+
+final smsPermission = await Permission.sms.request();
+
+print("📱 SMS Permission Status: $smsPermission");
+
+if (!smsPermission.isGranted) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text("SMS permission is required."),
+    ),
+  );
+  return;
+}
   bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
 
   if (!serviceEnabled) {
@@ -398,6 +439,19 @@ Future<void> handleEmergency() async {
   print("📍 Emergency Location");
   print("Latitude: ${position.latitude}");
   print("Longitude: ${position.longitude}");
+
+  final String emergencyMessage = '''
+🚨 EMERGENCY ALERT! 🚨
+
+A possible accident has been detected.
+
+I may need immediate help.
+
+📍 My current location:
+https://www.google.com/maps?q=${position.latitude},${position.longitude}
+
+Please contact me or send help immediately.
+''';
   // 👥 Get logged-in user's ID
 final user = await SessionManager.getUserDetails();
 final userId = user["user_id"];
@@ -418,8 +472,32 @@ final contactResponse = await ApiService.getEmergencyContacts(
 
 print("👥 Emergency Contacts Response:");
 print(contactResponse); 
+if (contactResponse["success"] == true) {
+  final contacts = contactResponse["contacts"];
 
-  
+  for (final contact in contacts) {
+    String phoneNumber = contact["phone"].toString().trim();
+
+    // Remove spaces and hyphens
+    phoneNumber = phoneNumber.replaceAll(RegExp(r'[\s-]'), '');
+
+    // Add India country code if needed
+    if (!phoneNumber.startsWith("+91")) {
+      if (phoneNumber.startsWith("91") && phoneNumber.length == 12) {
+        phoneNumber = "+$phoneNumber";
+      } else {
+        phoneNumber = "+91$phoneNumber";
+      }
+    }
+
+    print("📱 Attempting SMS to: $phoneNumber");
+
+    await sendSmsViaDefaultApp(
+  phoneNumber,
+  emergencyMessage,
+);
+  }
+}
 // 🚨 Send emergency alert to backend
 final sosResponse = await ApiService.sendSos(
   userId: userId,
