@@ -1,6 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:rr/theme/app_colors.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:rr/services/api_service.dart';
+import 'package:rr/services/session_manager.dart';
 
 /// Shared dark/light hybrid theme tokens — kept in sync with home_screen.dart.
 class _RRColors {
@@ -31,24 +34,143 @@ class SosScreen extends StatefulWidget {
 class _SosScreenState extends State<SosScreen> {
   bool _sosActive = false;
 
-  void _triggerSos() {
-    setState(() => _sosActive = true);
-    showModalBottomSheet(
-      context: context,
-      isDismissible: false,
-      enableDrag: false,
-      backgroundColor: Colors.transparent,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) => _SosSentSheet(
-        onClose: () {
-          Navigator.of(context).pop();
-          setState(() => _sosActive = false);
-        },
+  Future<void> _triggerSos() async {
+
+  setState(() => _sosActive = true);
+
+  // 📍 Check location permission
+  LocationPermission permission =
+      await Geolocator.checkPermission();
+
+  if (permission == LocationPermission.denied) {
+    permission = await Geolocator.requestPermission();
+  }
+
+  if (permission == LocationPermission.denied ||
+      permission == LocationPermission.deniedForever) {
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("📍 Location permission is required."),
+        ),
+      );
+    }
+
+    setState(() => _sosActive = false);
+    return;
+  }
+
+  try {
+
+    // 📍 Get current location
+    Position position =
+        await Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
       ),
     );
+
+    print("📍 Emergency Location");
+    print("Latitude: ${position.latitude}");
+    print("Longitude: ${position.longitude}");
+
+    // 👤 Get logged-in user
+    final user =
+        await SessionManager.getUserDetails();
+
+    final userId = user["user_id"];
+
+    if (userId == null) {
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              "Unable to identify the logged-in user.",
+            ),
+          ),
+        );
+      }
+
+      setState(() => _sosActive = false);
+      return;
+    }
+
+    // 👥 Get emergency contacts
+    final contactResponse =
+        await ApiService.getEmergencyContacts(
+      userId: userId,
+    );
+
+    print("👥 Emergency Contacts Response:");
+    print(contactResponse);
+
+    // 🚨 Send SOS to backend
+    final sosResponse =
+        await ApiService.sendSos(
+      userId: userId,
+      latitude: position.latitude,
+      longitude: position.longitude,
+      locationAddress:
+          "${position.latitude}, ${position.longitude}",
+    );
+
+    print("🚨 SOS Response:");
+    print(sosResponse);
+
+    // ❌ Check if SOS failed
+    if (sosResponse["success"] != true) {
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              sosResponse["message"] ??
+                  "Failed to send SOS.",
+            ),
+          ),
+        );
+      }
+
+      setState(() => _sosActive = false);
+      return;
+    }
+
+    // ✅ Show SOS success popup
+    if (mounted) {
+      showModalBottomSheet(
+        context: context,
+        isDismissible: false,
+        enableDrag: false,
+        backgroundColor: Colors.transparent,
+        builder: (context) => _SosSentSheet(
+          onClose: () {
+            Navigator.of(context).pop();
+
+            if (mounted) {
+              setState(() => _sosActive = false);
+            }
+          },
+        ),
+      );
+    }
+
+  } catch (e) {
+
+    print("SOS ERROR: $e");
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("SOS Error: $e"),
+        ),
+      );
+
+      setState(() => _sosActive = false);
+    }
   }
+}
 
   @override
   Widget build(BuildContext context) {
