@@ -1,10 +1,75 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
- static const String baseUrl =
-    "http://10.175.184.187/roadrescue/road_rescue_api";
+  static const String baseUrl =
+      "http://10.175.184.187/roadrescue/road_rescue_api";
 
+  // ================= PRIVATE POST HELPER =================
+  static Future<Map<String, dynamic>> _post(
+    String path, {
+    Map<String, dynamic>? jsonBody,
+    Map<String, String>? formBody,
+  }) async {
+    final url = Uri.parse("$baseUrl$path");
+
+    try {
+      final isJson = jsonBody != null;
+
+      final response = await http.post(
+        url,
+        headers: {
+          "Content-Type": isJson
+              ? "application/json"
+              : "application/x-www-form-urlencoded",
+          "Accept": "application/json",
+        },
+        body: isJson ? jsonEncode(jsonBody) : formBody,
+      );
+
+      return _parseResponse(response);
+    } catch (e) {
+      return {
+        "success": false,
+        "message": "Connection error: $e",
+      };
+    }
+  }
+
+  // ================= PRIVATE GET HELPER =================
+  static Future<Map<String, dynamic>> _get(String path) async {
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl$path"),
+        headers: {
+          "Accept": "application/json",
+        },
+      );
+
+      return _parseResponse(response);
+    } catch (e) {
+      return {
+        "success": false,
+        "message": "Connection error: $e",
+      };
+    }
+  }
+
+  // ================= RESPONSE PARSER =================
+  static Map<String, dynamic> _parseResponse(http.Response response) {
+    try {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (_) {
+      final cleanMsg =
+          response.body.replaceAll(RegExp(r'<[^>]*>'), ' ').trim();
+
+      return {
+        "success": false,
+        "message": "Server Error (${response.statusCode}): $cleanMsg",
+      };
+    }
+  }
 
   // ================= REGISTER =================
   static Future<Map<String, dynamic>> registerUser({
@@ -12,187 +77,187 @@ class ApiService {
     required String email,
     required String phone,
     required String password,
-  }) async {
-    final url = Uri.parse("$baseUrl/auth/register.php");
-
-    try {
-      final response = await http.post(
-        url,
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-        },
-        body: jsonEncode({
+  }) =>
+      _post(
+        "/auth/register.php",
+        jsonBody: {
           "full_name": fullName,
           "email": email,
           "phone": phone,
           "password": password,
-        }),
+        },
       );
-
-      try {
-        return jsonDecode(response.body);
-      } catch (_) {
-        return {
-          "success": false,
-          "message":
-              "PHP Error Output: ${response.body.replaceAll(RegExp(r'<[^>]*>'), ' ')}"
-        };
-      }
-    } catch (e) {
-      return {
-        "success": false,
-        "message": "Connection error: $e",
-      };
-    }
-  }
 
   // ================= LOGIN =================
   static Future<Map<String, dynamic>> loginUser({
     required String email,
     required String password,
-  }) async {
-    final url = Uri.parse("$baseUrl/auth/login.php");
-
-    try {
-      final response = await http.post(
-        url,
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-        },
-        body: jsonEncode({
+  }) =>
+      _post(
+        "/auth/login.php",
+        jsonBody: {
           "email": email,
           "password": password,
-        }),
+        },
       );
 
-      try {
-        return jsonDecode(response.body);
-      } catch (_) {
-        return {
-          "success": false,
-          "message":
-              "PHP Error Output: ${response.body.replaceAll(RegExp(r'<[^>]*>'), ' ')}"
-        };
-      }
-    } catch (e) {
-      return {
-        "success": false,
-        "message": "Connection error: $e",
-      };
-    }
-  }
+  // ================= FORGOT PASSWORD =================
+  static Future<Map<String, dynamic>> forgotPassword({
+    required String email,
+    required String newPassword,
+  }) =>
+      _post(
+        "/auth/forgot_password.php",
+        formBody: {
+          "email": email,
+          "new_password": newPassword,
+        },
+      );
 
   // ================= UPDATE PROFILE =================
   static Future<Map<String, dynamic>> updateProfile({
     required int userId,
     required String fullName,
     required String phone,
-  }) async {
-    final url = Uri.parse("$baseUrl/update_profile.php");
-
-    try {
-      final response = await http.post(
-        url,
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-        },
-        body: jsonEncode({
+  }) =>
+      _post(
+        "/update_profile.php",
+        jsonBody: {
           "user_id": userId,
           "full_name": fullName,
           "phone": phone,
-        }),
-      );
-
-      // 🔍 PRINT RAW RESPONSE TO TERMINAL/DEBUG CONSOLE
-      print("--------------------------------------------------");
-      print("SERVER RESPONSE STATUS: ${response.statusCode}");
-      print("SERVER RAW RESPONSE: ${response.body}");
-      print("--------------------------------------------------");
-
-      try {
-        return jsonDecode(response.body);
-      } catch (_) {
-        return {
-          "success": false,
-          "message":
-              "PHP Error Output: ${response.body.replaceAll(RegExp(r'<[^>]*>'), ' ')}"
-        };
-      }
-    } catch (e) {
-      return {
-        "success": false,
-        "message": "Connection error: $e",
-      };
-    }
-  }
-
-// ================= BREAKDOWN REQUEST =================
-static Future<Map<String, dynamic>> sendBreakdownRequest({
-  required int userId,
-  required String vehicleType,
-  required String issueType,
-  required String description,
-  required String latitude,
-  required String longitude,
-}) async {
-  final url = Uri.parse("$baseUrl/breakdown/request_breakdown.php");
-
-  try {
-    final response = await http.post(
-      url,
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Accept": "application/json",
-      },
-      body: {
-        "user_id": userId.toString(),
-        "vehicle_type": vehicleType,
-        "issue_type": issueType,
-        "description": description,
-        "latitude": latitude,
-        "longitude": longitude,
-      },
-    );
-
-    // 🔍 PRINT RAW RESPONSE TO TERMINAL/DEBUG CONSOLE
-    print("--------------------------------------------------");
-    print("SERVER RESPONSE STATUS: ${response.statusCode}");
-    print("SERVER RAW RESPONSE: ${response.body}");
-    print("--------------------------------------------------");
-
-    try {
-      return jsonDecode(response.body);
-    } catch (_) {
-      return {
-        "success": false,
-        "message": "PHP Error Output: ${response.body.replaceAll(RegExp(r'<[^>]*>'), ' ')}"
-      };
-    }
-  } catch (e) {
-    return {
-      "success": false,
-      "message": "Connection error: $e",
-    };
-  }
-}
-// ================= GET BREAKDOWN HISTORY =================
-  static Future<Map<String, dynamic>> getBreakdownHistory({
-    required int userId,
-  }) async {
-    final url = Uri.parse("$baseUrl/history/get_request_history.php?user_id=$userId");
-
-    try {
-      final response = await http.get(
-        url,
-        headers: {
-          "Accept": "application/json",
         },
       );
 
-      return jsonDecode(response.body);
+  // ================= BREAKDOWN REQUEST =================
+  static Future<Map<String, dynamic>> sendBreakdownRequest({
+    required int userId,
+    required String vehicleType,
+    required String issueType,
+    required String description,
+    required String latitude,
+    required String longitude,
+  }) =>
+      _post(
+        "/breakdown/request_breakdown.php",
+        formBody: {
+          "user_id": userId.toString(),
+          "vehicle_type": vehicleType,
+          "issue_type": issueType,
+          "description": description,
+          "latitude": latitude,
+          "longitude": longitude,
+        },
+      );
+
+  // ================= SEND SOS =================
+  static Future<Map<String, dynamic>> sendSos({
+    required int userId,
+    required double latitude,
+    required double longitude,
+    String? locationAddress,
+  }) =>
+      _post(
+        "/sos/send_sos.php",
+        formBody: {
+          "user_id": userId.toString(),
+          "latitude": latitude.toString(),
+          "longitude": longitude.toString(),
+          "location_address": locationAddress ?? "",
+        },
+      );
+
+  // ================= GET BREAKDOWN HISTORY =================
+  static Future<Map<String, dynamic>> getBreakdownHistory({
+    required int userId,
+  }) =>
+      _get(
+        "/history/get_request_history.php?user_id=$userId",
+      );
+
+  // ================= ADD EMERGENCY CONTACT =================
+  static Future<Map<String, dynamic>> addEmergencyContact({
+    required int userId,
+    required String contactName,
+    required String phone,
+    required String relationship,
+  }) =>
+      _post(
+        "/emergency/add_contact.php",
+        formBody: {
+          "user_id": userId.toString(),
+          "contact_name": contactName,
+          "phone": phone,
+          "relationship": relationship,
+        },
+      );
+
+  // ================= GET EMERGENCY CONTACTS =================
+  static Future<Map<String, dynamic>> getEmergencyContacts({
+    required int userId,
+  }) =>
+      _get(
+        "/emergency/get_contacts.php?user_id=$userId",
+      );
+
+  // ================= DELETE EMERGENCY CONTACT =================
+  static Future<Map<String, dynamic>> deleteEmergencyContact({
+    required int contactId,
+  }) =>
+      _post(
+        "/emergency/delete_contact.php",
+        formBody: {
+          "contact_id": contactId.toString(),
+        },
+      );
+
+  // ================= GET NOTIFICATIONS =================
+  static Future<Map<String, dynamic>> getNotifications({
+    required int userId,
+  }) =>
+      _get(
+        "/notifications/get_notifications.php?user_id=$userId",
+      );
+
+  // ================= AI DIAGNOSIS =================
+  static Future<Map<String, dynamic>> getAiDiagnosis({
+    required int userId,
+    required String userMessage,
+  }) =>
+      _post(
+        "/ai/ai_diagnosis.php",
+        formBody: {
+          "user_id": userId.toString(),
+          "user_message": userMessage,
+        },
+      );
+
+  // ================= ANALYZE DASHBOARD IMAGE =================
+  // Uses a multipart request directly since the shared _post/_get
+  // helpers don't support file uploads.
+  static Future<Map<String, dynamic>> analyzeDashboardImage({
+    required int userId,
+    required String imagePath,
+  }) async {
+    final url = Uri.parse("$baseUrl/ai/analyze_dashboard.php");
+
+    try {
+      final request = http.MultipartRequest("POST", url)
+        ..headers["Accept"] = "application/json"
+        ..fields["user_id"] = userId.toString()
+        ..files.add(await http.MultipartFile.fromPath("image", imagePath));
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (kDebugMode) {
+        print("--------------------------------------------------");
+        print("ANALYZE DASHBOARD RESPONSE STATUS: ${response.statusCode}");
+        print("ANALYZE DASHBOARD RAW RESPONSE: ${response.body}");
+        print("--------------------------------------------------");
+      }
+
+      return _parseResponse(response);
     } catch (e) {
       return {
         "success": false,
@@ -200,234 +265,4 @@ static Future<Map<String, dynamic>> sendBreakdownRequest({
       };
     }
   }
-
-  // ================= FORGOT PASSWORD =================
-static Future<Map<String, dynamic>> forgotPassword({
-  required String email,
-  required String newPassword,
-}) async {
-  final url = Uri.parse("$baseUrl/auth/forgot_password.php");
-
-  try {
-    final response = await http.post(
-      url,
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: {
-        "email": email,
-        "new_password": newPassword,
-      },
-    );
-
-    return jsonDecode(response.body);
-  } catch (e) {
-    return {
-      "success": false,
-      "message": "Connection error: $e",
-    };
-  }
-}
-
-// ================= ADD EMERGENCY CONTACT =================
-static Future<Map<String, dynamic>> addEmergencyContact({
-  required int userId,
-  required String contactName,
-  required String phone,
-  required String relationship,
-}) async {
-  final url = Uri.parse("$baseUrl/emergency/add_contact.php");
-
-  try {
-    final response = await http.post(
-      url,
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: {
-        "user_id": userId.toString(),
-        "contact_name": contactName,
-        "phone": phone,
-        "relationship": relationship,
-      },
-    );
-
-    return jsonDecode(response.body);
-  } catch (e) {
-    return {
-      "success": false,
-      "message": "Connection error: $e",
-    };
-  }
-}
-
-// ================= GET EMERGENCY CONTACTS =================
-static Future<Map<String, dynamic>> getEmergencyContacts({
-  required int userId,
-}) async {
-  final url = Uri.parse(
-      "$baseUrl/emergency/get_contacts.php?user_id=$userId");
-
-  try {
-    final response = await http.get(
-      url,
-      headers: {
-        "Accept": "application/json",
-      },
-    );
-
-    return jsonDecode(response.body);
-  } catch (e) {
-    return {
-      "success": false,
-      "message": "Connection error: $e",
-    };
-  }
-}
-
-
-// ================= SEND SOS =================
-static Future<Map<String, dynamic>> sendSos({
-  required int userId,
-  required double latitude,
-  required double longitude,
-  String? locationAddress,
-}) async {
-  final url = Uri.parse("$baseUrl/sos/send_sos.php");
-
-  try {
-    final response = await http.post(
-      url,
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Accept": "application/json",
-      },
-      body: {
-        "user_id": userId.toString(),
-        "latitude": latitude.toString(),
-        "longitude": longitude.toString(),
-        "location_address": locationAddress ?? "",
-      },
-    );
-
-    print("--------------------------------------------------");
-    print("SOS SERVER RESPONSE STATUS: ${response.statusCode}");
-    print("SOS SERVER RAW RESPONSE: ${response.body}");
-    print("--------------------------------------------------");
-
-    return jsonDecode(response.body);
-  } catch (e) {
-    return {
-      "success": false,
-      "message": "Connection error: $e",
-    };
-  }
-}
-// ================= GET NOTIFICATIONS =================
-
-static Future<Map<String, dynamic>> getNotifications({
-  required int userId,
-}) async {
-
-  final url = Uri.parse(
-    "$baseUrl/notifications/get_notifications.php?user_id=$userId",
-  );
-
-  try {
-    final response = await http.get(
-      url,
-      headers: {
-        "Accept": "application/json",
-      },
-    );
-
-    print("NOTIFICATIONS RESPONSE: ${response.body}");
-
-    return jsonDecode(response.body);
-
-  } catch (e) {
-    return {
-      "success": false,
-      "message": "Connection error: $e",
-    };
-  }
-}
-
-// ================= AI DIAGNOSIS =================
-static Future<Map<String, dynamic>> getAiDiagnosis({
-  required int userId,
-  required String userMessage,
-}) async {
-  final url = Uri.parse("$baseUrl/ai/ai_diagnosis.php");
-
-  try {
-    final response = await http.post(
-      url,
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Accept": "application/json",
-      },
-      body: {
-        "user_id": userId.toString(),
-        "user_message": userMessage,
-      },
-    );
-
-    print("--------------------------------------------------");
-    print("AI DIAGNOSIS RESPONSE STATUS: ${response.statusCode}");
-    print("AI DIAGNOSIS RAW RESPONSE: ${response.body}");
-    print("--------------------------------------------------");
-
-    try {
-      return jsonDecode(response.body);
-    } catch (_) {
-      return {
-        "success": false,
-        "message": "PHP Error Output: ${response.body.replaceAll(RegExp(r'<[^>]*>'), ' ')}"
-      };
-    }
-  } catch (e) {
-    return {
-      "success": false,
-      "message": "Connection error: $e",
-    };
-  }
-}
-
-// ================= ANALYZE DASHBOARD IMAGE =================
-static Future<Map<String, dynamic>> analyzeDashboardImage({
-  required int userId,
-  required String imagePath,
-}) async {
-  final url = Uri.parse("$baseUrl/ai/analyze_dashboard.php");
-
-  try {
-    final request = http.MultipartRequest("POST", url)
-      ..headers["Accept"] = "application/json"
-      ..fields["user_id"] = userId.toString()
-      ..files.add(await http.MultipartFile.fromPath("image", imagePath));
-
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
-
-    print("--------------------------------------------------");
-    print("ANALYZE DASHBOARD RESPONSE STATUS: ${response.statusCode}");
-    print("ANALYZE DASHBOARD RAW RESPONSE: ${response.body}");
-    print("--------------------------------------------------");
-
-    try {
-      return jsonDecode(response.body);
-    } catch (_) {
-      return {
-        "success": false,
-        "message": "PHP Error Output: ${response.body.replaceAll(RegExp(r'<[^>]*>'), ' ')}"
-      };
-    }
-  } catch (e) {
-    return {
-      "success": false,
-      "message": "Connection error: $e",
-    };
-  }
-}
 }

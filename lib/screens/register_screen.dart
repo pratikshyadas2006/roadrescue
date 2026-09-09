@@ -2,6 +2,9 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:rr/theme/app_colors.dart';
 import 'package:rr/services/api_service.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'home_screen.dart';
 
 /// Shared dark/light hybrid theme tokens — kept in sync with home_screen.dart.
 class _RRColors {
@@ -49,65 +52,62 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  Future<void> registerUser() async {
-    // Trigger Form validation before submitting
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+Future<void> _registerUser() async {
+    // Validate form before making network request
+    if (!_formKey.currentState!.validate()) return;
 
+    // 1. Turn on loading indicator
     setState(() {
       isLoading = true;
     });
 
     try {
-      final result = await ApiService.registerUser(
-        fullName: nameController.text.trim(),
-        email: emailController.text.trim(),
-        phone: phoneController.text.trim(),
-        password: passwordController.text,
-      );
+      // 2. Make the HTTP request with a 10-second timeout
+      final response = await http.post(
+        Uri.parse('http://10.134.9.82/road_rescue_api/auth/register.php'),
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: jsonEncode({
+          "full_name": nameController.text.trim(),
+          "email": emailController.text.trim(),
+          "phone": phoneController.text.trim(),
+          "password": passwordController.text.trim(),
+        }),
+      ).timeout(const Duration(seconds: 10));
 
-      if (!mounted) return;
-
-      setState(() {
-        isLoading = false;
-      });
-
-      if (result["success"] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Registration Successful"),
-            backgroundColor: Colors.green,
-          ),
+      if (response.statusCode == 200) {
+        // Parse success response and navigate
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
         );
-
-        // Return to Login screen
-        Navigator.pop(context);
       } else {
+        // Server returned an error code
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result["message"] ?? "Registration failed"),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Server Error: ${response.statusCode}')),
         );
       }
     } catch (e) {
+      // Catches network drops, incorrect IPs, or timeouts
       if (!mounted) return;
-
-      setState(() {
-        isLoading = false;
-      });
-
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Error: $e"),
-          backgroundColor: Colors.red,
-        ),
+        const SnackBar(content: Text('Connection failed. Check your network or XAMPP server.')),
       );
+    } finally {
+      // 3. ALWAYS turn off loading indicator whether success or failure
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
     }
   }
 
-  @override
+@override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _RRColors.canvasTop,
@@ -323,11 +323,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ),
 
-                    const SizedBox(height: 24),
+const SizedBox(height: 24),
                     _BeaconButton(
                       label: 'CREATE ACCOUNT',
                       isLoading: isLoading,
-                      onPressed: isLoading ? null : registerUser,
+                      // Fixed: Changed 'registerUser' to '_registerUser'
+                      onPressed: isLoading ? null : _registerUser,
                     ),
                     const SizedBox(height: 18),
                     Row(
@@ -409,7 +410,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 }
 
-/// Shared frosted-glass input styling for dark canvases.
 InputDecoration _glassInputDecoration({
   required String label,
   required IconData icon,
@@ -553,7 +553,6 @@ class _BeaconButton extends StatelessWidget {
   }
 }
 
-/// Dashed road-marking motif, matching the home screen.
 class _RoadDivider extends StatelessWidget {
   const _RoadDivider();
 
@@ -572,14 +571,6 @@ class _RoadDivider extends StatelessWidget {
                     ? _RRColors.beaconAmber.withValues(alpha: 0.7)
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(2),
-                boxShadow: i.isEven
-                    ? [
-                        BoxShadow(
-                          color: _RRColors.beaconAmber.withValues(alpha: 0.5),
-                          blurRadius: 6,
-                        ),
-                      ]
-                    : null,
               ),
             ),
           );
