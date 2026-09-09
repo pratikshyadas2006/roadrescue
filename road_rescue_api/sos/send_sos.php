@@ -1,25 +1,14 @@
 <?php
+// Response ko JSON format me set karne ke liye
+header('Content-Type: application/json');
 
 include("../config/db_connect.php");
 
-header("Content-Type: application/json");
-
-// Check database connection
-if (!$conn) {
-    echo json_encode([
-        "success" => false,
-        "message" => "Database connection failed"
-    ]);
-    exit();
-}
-
-// Get POST data
 $user_id = $_POST['user_id'] ?? '';
 $latitude = $_POST['latitude'] ?? '';
 $longitude = $_POST['longitude'] ?? '';
 $location_address = $_POST['location_address'] ?? null;
 
-// Validate required fields
 if (empty($user_id) || $latitude === '' || $longitude === '') {
     echo json_encode([
         "success" => false,
@@ -28,38 +17,19 @@ if (empty($user_id) || $latitude === '' || $longitude === '') {
     exit();
 }
 
-// Insert SOS request
-$query = "INSERT INTO sos_requests 
-          (user_id, latitude, longitude, location_address, status)
-          VALUES (?, ?, ?, ?, 'Pending')";
-
-$stmt = mysqli_prepare($conn, $query);
-
-if (!$stmt) {
-    echo json_encode([
-        "success" => false,
-        "message" => "Query preparation failed"
-    ]);
-    exit();
-}
-
-// Bind values
-mysqli_stmt_bind_param(
-    $stmt,
-    "idds",
-    $user_id,
-    $latitude,
-    $longitude,
-    $location_address
+$stmt = mysqli_prepare($conn,
+    "INSERT INTO sos_requests (user_id, latitude, longitude, location_address, status)
+     VALUES (?, ?, ?, ?, 'Pending')"
 );
+mysqli_stmt_bind_param($stmt, "idds", $user_id, $latitude, $longitude, $location_address);
 
 // Execute SOS query
 if (mysqli_stmt_execute($stmt)) {
 
-    // Get the SOS ID
+    // Get the created SOS ID
     $sos_id = mysqli_insert_id($conn);
 
-    // Get all emergency contacts of this user
+    // Get all emergency contacts for this user
     $contacts_query = "
         SELECT contact_id, contact_name
         FROM emergency_contacts
@@ -67,25 +37,16 @@ if (mysqli_stmt_execute($stmt)) {
     ";
 
     $contacts_stmt = mysqli_prepare($conn, $contacts_query);
-
-    mysqli_stmt_bind_param(
-        $contacts_stmt,
-        "i",
-        $user_id
-    );
-
+    mysqli_stmt_bind_param($contacts_stmt, "i", $user_id);
     mysqli_stmt_execute($contacts_stmt);
 
     $result = mysqli_stmt_get_result($contacts_stmt);
-
     $notification_count = 0;
 
-    // Create notification for every emergency contact
+    // Create notification entry for every emergency contact
     while ($contact = mysqli_fetch_assoc($result)) {
 
-        $message = "🚨 EMERGENCY ALERT! " .
-                   "An emergency has been detected. " .
-                   "Location: https://www.google.com/maps?q=" .
+        $message = "🚨 EMERGENCY ALERT! An emergency has been detected. Location: https://www.google.com/maps?q=" .
                    $latitude . "," . $longitude;
 
         $notification_query = "
@@ -94,11 +55,7 @@ if (mysqli_stmt_execute($stmt)) {
             VALUES (?, ?, ?, 'Sent')
         ";
 
-        $notification_stmt = mysqli_prepare(
-            $conn,
-            $notification_query
-        );
-
+        $notification_stmt = mysqli_prepare($conn, $notification_query);
         mysqli_stmt_bind_param(
             $notification_stmt,
             "iis",
@@ -116,16 +73,14 @@ if (mysqli_stmt_execute($stmt)) {
 
     mysqli_stmt_close($contacts_stmt);
 
-    // Final response
+    // Final Success Response
     echo json_encode([
         "success" => true,
         "message" => "SOS Request Sent Successfully",
         "sos_id" => $sos_id,
         "notifications_created" => $notification_count
     ]);
-
 } else {
-
     echo json_encode([
         "success" => false,
         "message" => "Failed to Send SOS Request"
