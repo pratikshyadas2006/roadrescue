@@ -12,6 +12,15 @@ import 'ai_diagnosis_screen.dart';
 import 'nearby_services_screen.dart';
 import 'package:rr/services/session_manager.dart';
 import 'map_screen.dart';
+import 'package:sensors_plus/sensors_plus.dart';
+import 'dart:math';
+import 'dart:async';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:vibration/vibration.dart';
+import 'package:rr/screens/notifications_screen.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:rr/services/api_service.dart';
+
 
 /// Dark/light hybrid theme tokens.
 /// The canvas stays dark (night-highway navy-black), but now carries a
@@ -44,6 +53,485 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String userName = "Login";
+  bool roadRescueEnabled = false;
+  double acceleration = 0.0;
+double rotation = 0.0;
+bool accidentDetected = false;
+bool isMonitoring = false;
+Timer? accidentTimer;
+int countdown = 15;
+final AudioPlayer emergencyPlayer = AudioPlayer();
+
+StreamSubscription<UserAccelerometerEvent>? accelerometerSubscription;
+StreamSubscription<GyroscopeEvent>? gyroscopeSubscription;
+
+bool impactDetected = false;
+Timer? impactTimer;
+
+double maxAcceleration = 0.0;
+double maxRotation = 0.0;
+
+int abnormalAccelerationCount = 0;
+int abnormalRotationCount = 0;
+
+void startSensorMonitoring() {
+  // Prevent duplicate sensor listeners
+  accelerometerSubscription?.cancel();
+  gyroscopeSubscription?.cancel();
+
+  accelerometerSubscription = userAccelerometerEventStream().listen((event) {
+    final value = sqrt(
+      event.x * event.x +
+          event.y * event.y +
+          event.z * event.z,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      acceleration = value;
+debugPrint("Acceleration:$value");
+      if (impactDetected) {
+  if (value > maxAcceleration) {
+    maxAcceleration = value;
+  }
+
+  if (value >= 12.0) {
+    abnormalAccelerationCount++;
+  }
+}
+
+detectImpact(value);
+
+    
+    });
+
+    // Stage 1 will be added here next
+  });
+
+  gyroscopeSubscription = gyroscopeEventStream().listen((event) {
+    final value = sqrt(
+      event.x * event.x +
+          event.y * event.y +
+          event.z * event.z,
+    );
+
+    if (!mounted) return;
+
+   setState(() {
+  rotation = value;
+});
+
+if (impactDetected) {
+  if (value > maxRotation) {
+    maxRotation = value;
+  }
+
+  if (value >= 4.5) {
+    abnormalRotationCount++;
+  }
+}
+
+debugPrint("Rotation: $value");
+
+    // Stage 2 will use this value next
+  });
+}
+
+
+
+void stopSensorMonitoring() {
+  accelerometerSubscription?.cancel();
+  gyroscopeSubscription?.cancel();
+
+  accelerometerSubscription = null;
+  gyroscopeSubscription = null;
+
+  impactTimer?.cancel();
+  impactTimer = null;
+
+  impactDetected = false;
+
+  debugPrint("🛑 Sensor monitoring stopped");
+}
+
+
+void detectImpact(double accelerationValue) {
+  if (impactDetected || accidentDetected || !roadRescueEnabled) {
+    return;
+  }
+
+  const double impactThreshold = 18.0;
+
+  if (accelerationValue >= impactThreshold) {
+    impactDetected = true;
+
+    maxAcceleration = accelerationValue;
+    maxRotation = 0.0;
+
+    abnormalAccelerationCount = 1;
+    abnormalRotationCount = 0;
+
+    debugPrint("🚨 STAGE 1 STARTED");
+    debugPrint("Initial Impact: $accelerationValue");
+
+    impactTimer?.cancel();
+
+    impactTimer = Timer(
+      const Duration(milliseconds: 1500),
+      () {
+        if (!mounted) return;
+
+        debugPrint("⏱ Confirmation Window Finished");
+
+        debugPrint("Max Acceleration: $maxAcceleration");
+        debugPrint("Max Rotation: $maxRotation");
+        debugPrint(
+          "Acceleration Events: $abnormalAccelerationCount",
+        );
+        debugPrint(
+          "Rotation Events: $abnormalRotationCount",
+        );
+
+        const double rotationThreshold = 5.0;
+
+        bool crashConfirmed =
+            maxAcceleration >= 18.0 &&
+            maxRotation >= rotationThreshold &&
+            abnormalAccelerationCount >= 2;
+
+        impactDetected = false;
+        impactTimer = null;
+
+        if (crashConfirmed) {
+          debugPrint("✅ STAGE 2 CONFIRMED");
+
+          detectPossibleAccident();
+        } else {
+          debugPrint("❌ Movement ignored");
+        }
+      },
+    );
+  }
+}
+
+void detectPossibleAccident() {
+  if (accidentDetected) return;
+
+  setState(() {
+    accidentDetected = true;
+    countdown = 15;
+  });
+
+  emergencyPlayer.setReleaseMode(ReleaseMode.loop);
+  emergencyPlayer.play(
+    AssetSource('audio/emergency_alert.mp3'),
+  );
+
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (dialogContext) {
+      return StatefulBuilder(
+        builder: (context, setDialogState) {
+          if (accidentTimer == null || !accidentTimer!.isActive) {
+            accidentTimer = Timer.periodic(
+              const Duration(seconds: 1),
+              (timer) {
+                if (!mounted) {
+                  timer.cancel();
+                  return;
+                }
+
+                if (countdown > 1) {
+                  setDialogState(() {
+                    countdown--;
+                  });
+                } else {
+                  timer.cancel();
+                  accidentTimer = null;
+
+                  emergencyPlayer.stop();
+
+                  if (Navigator.of(dialogContext).canPop()) {
+                    Navigator.of(dialogContext).pop();
+                  }
+
+                  setState(() {
+                    accidentDetected = false;
+                  });
+
+                  handleEmergency();
+                }
+              },
+            );
+          }
+
+          return AlertDialog(
+            title: const Text(
+              "🚨 Possible Accident Detected",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  "We detected a sudden impact or unusual movement.",
+                  textAlign: TextAlign.center,
+                ),
+
+                const SizedBox(height: 12),
+
+                const Text(
+                  "Are you okay?",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                Text(
+                  "$countdown",
+                  style: const TextStyle(
+                    fontSize: 45,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red,
+                  ),
+                ),
+
+                const Text(
+                  "seconds remaining",
+                  style: TextStyle(
+                    color: Colors.grey,
+                  ),
+                ),
+              ],
+            ),
+
+            actions: [
+              TextButton(
+                onPressed: () {
+                  accidentTimer?.cancel();
+                  accidentTimer = null;
+
+                  emergencyPlayer.stop();
+
+                  setState(() {
+                    accidentDetected = false;
+                    countdown = 15;
+                  });
+
+                  Navigator.pop(dialogContext);
+                },
+                child: const Text(
+                  "I'M OKAY",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+
+              ElevatedButton(
+                onPressed: () {
+                  accidentTimer?.cancel();
+                  accidentTimer = null;
+
+                  emergencyPlayer.stop();
+
+                  Navigator.pop(dialogContext);
+
+                  setState(() {
+                    accidentDetected = false;
+                  });
+
+                  handleEmergency();
+                },
+                child: const Text("SEND HELP"),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+}
+Future<void> handleEmergency() async {
+  bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+
+  if (!serviceEnabled) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("📍 Please turn on your phone's location."),
+      ),
+    );
+    return;
+  }
+
+  LocationPermission permission = await Geolocator.checkPermission();
+
+  if (permission == LocationPermission.denied) {
+    permission = await Geolocator.requestPermission();
+  }
+
+  if (permission == LocationPermission.denied ||
+      permission == LocationPermission.deniedForever) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("📍 Location permission is required."),
+      ),
+    );
+    return;
+  }
+
+  Position position = await Geolocator.getCurrentPosition(
+    locationSettings: const LocationSettings(
+      accuracy: LocationAccuracy.high,
+    ),
+  );
+
+  print("📍 Emergency Location");
+  print("Latitude: ${position.latitude}");
+  print("Longitude: ${position.longitude}");
+  // 👥 Get logged-in user's ID
+final user = await SessionManager.getUserDetails();
+final userId = user["user_id"];
+
+if (userId == null) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text("Unable to identify the logged-in user."),
+    ),
+  );
+  return;
+}
+
+// 👥 Get emergency contacts
+final contactResponse = await ApiService.getEmergencyContacts(
+  userId: userId,
+);
+
+print("👥 Emergency Contacts Response:");
+print(contactResponse); 
+
+  
+// 🚨 Send emergency alert to backend
+final sosResponse = await ApiService.sendSos(
+  userId: userId,
+  latitude: position.latitude,
+  longitude: position.longitude,
+  locationAddress:
+      "${position.latitude}, ${position.longitude}",
+);
+
+print("🚨 SOS Response:");
+print(sosResponse);
+
+  showDialog(
+  context: context,
+  barrierDismissible: false,
+  builder: (dialogContext) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      title: Wrap(
+  spacing: 8,
+  crossAxisAlignment: WrapCrossAlignment.center,
+  children: const [
+    Icon(
+      Icons.check_circle,
+      color: Colors.green,
+    ),
+    Text(
+      "Emergency Alert Sent",
+      style: TextStyle(
+        fontWeight: FontWeight.bold,           
+         ),
+          ),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            "Your emergency request has been successfully sent.",
+            textAlign: TextAlign.center,
+          ),
+
+          const SizedBox(height: 18),
+
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                const Text(
+                  "EMERGENCY LOCATION",
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey,
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                Text(
+                  "${position.latitude}, ${position.longitude}",
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          const Row(
+  children: [
+    const Icon(
+      Icons.check_circle,
+      color: Colors.green,
+    ),
+
+    const SizedBox(width: 10),
+
+    Expanded(
+      child: Text(
+        "SOS request recorded successfully",
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.pop(dialogContext);
+          },
+          child: const Text("OK"),
+        ),
+      ],
+    );
+  },
+);
+}
 
   @override
   void initState() {
@@ -123,6 +611,21 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         actions: [
+          IconButton(
+    icon: const Icon(
+      Icons.notifications_outlined,
+      color: Colors.white,
+      size: 22,
+    ),
+    onPressed: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => NotificationsScreen(),
+        ),
+      );
+    },
+  ),
           Padding(
             padding: const EdgeInsets.only(right: 10),
             child: Center(
@@ -297,9 +800,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           // ---- MOONLIGHT / LIGHT-MIX GLOW ----
-          // A soft, cool wash bleeding down from the top-right — this is the
-          // "light" half of the dark/light mix: a faint source of light on
-          // an otherwise dark canvas, like a highway sign glowing overhead.
           Positioned(
             top: -140,
             right: -100,
@@ -402,8 +902,30 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 22),
 
                   // ---- HERO CTA: Enable Road Rescue ----
-                  _EnableRoadRescueCard(onTap: () {}),
+                  _EnableRoadRescueCard(
+                    enabled: roadRescueEnabled,
+                    onTap: () {
+  setState(() {
+  roadRescueEnabled = !roadRescueEnabled;
+});
 
+if (roadRescueEnabled) {
+  startSensorMonitoring();
+} else {
+  stopSensorMonitoring();
+}
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        roadRescueEnabled
+            ? "🟢 Road Rescue Enabled"
+            : "⚪ Road Rescue Disabled",
+      ),
+    ),
+  );
+},
+                  ),
                   const SizedBox(height: 28),
 
                   Row(
@@ -536,7 +1058,7 @@ class _RoadDivider extends StatelessWidget {
                         blurRadius: 6,
                       ),
                     ]
-                  : null,
+                  : [],
             ),
           ),
         );
@@ -545,129 +1067,81 @@ class _RoadDivider extends StatelessWidget {
   }
 }
 
-/// Frosted-glass hero CTA with a glowing beacon-amber halo and a top
-/// sheen line — the one unmistakably bright element on an otherwise
-/// dark, quiet screen, with a light "glass catching light" edge.
 class _EnableRoadRescueCard extends StatelessWidget {
+  final bool enabled;
   final VoidCallback onTap;
-  const _EnableRoadRescueCard({required this.onTap});
+
+  const _EnableRoadRescueCard({
+    required this.enabled,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: _RRColors.beaconAmber.withValues(alpha: 0.35),
-            blurRadius: 32,
-            spreadRadius: 0,
-            offset: const Offset(0, 8),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: enabled ? _RRColors.beaconAmber.withValues(alpha: 0.15) : _RRColors.glassFill,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: enabled ? _RRColors.beaconAmber : _RRColors.glassBorder,
+            width: 1.5,
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(22),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-          child: InkWell(
-            onTap: onTap,
-            child: Stack(
-              children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        _RRColors.glassFillHover,
-                        _RRColors.glassFill,
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(color: _RRColors.beaconAmber.withValues(alpha: 0.55), width: 1.2),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          gradient: const RadialGradient(
-                            colors: [_RRColors.beaconAmberSoft, _RRColors.beaconAmber, Color(0xFFD98600)],
-                            stops: [0.0, 0.55, 1.0],
-                          ),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: _RRColors.beaconAmber.withValues(alpha: 0.6),
-                              blurRadius: 18,
-                              spreadRadius: 1,
-                            ),
-                          ],
-                        ),
-                        child: const Icon(Icons.health_and_safety_rounded, color: Colors.white, size: 28),
-                      ),
-                      const SizedBox(width: 16),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Enable Road Rescue',
-                              style: TextStyle(
-                                fontSize: 16.5,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                                letterSpacing: -0.1,
-                              ),
-                            ),
-                            SizedBox(height: 3),
-                            Text(
-                              'Turn on live protection for this trip',
-                              style: TextStyle(fontSize: 12.5, color: _RRColors.textMutedOnDark),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(Icons.chevron_right_rounded, color: _RRColors.beaconAmber, size: 26),
-                    ],
-                  ),
-                ),
-                // Glass "light catching the edge" sheen — a thin bright
-                // line along the top, the light half of the dark/light mix.
-                Positioned(
-                  top: 0,
-                  left: 18,
-                  right: 18,
-                  child: Container(
-                    height: 1,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.transparent,
-                          _RRColors.glassHighlight,
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+          boxShadow: [
+            BoxShadow(
+              color: enabled ? _RRColors.beaconAmber.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.2),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
-          ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(
+              enabled ? Icons.directions_car_rounded : Icons.shield,
+              color: enabled ? _RRColors.beaconAmber : _RRColors.textMutedOnDark,
+              size: 28,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    enabled ? 'Road Rescue Active' : 'Enable Road Rescue',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    enabled ? 'Monitoring active for roadside assistance' : 'Tap to toggle rapid response coverage',
+                    style: const TextStyle(
+                      color: _RRColors.textMutedOnDark,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: enabled,
+              onChanged: (_) => onTap(),
+              activeColor: _RRColors.beaconAmber,
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// Frosted-glass feature tile with a colored glow behind its icon and a
-/// faint tinted wash across the card body — each module keeps its own
-/// accent identity, softly lit against the dark canvas instead of
-/// sitting on a flat white card.
+
+
 class _FeatureCard extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -685,85 +1159,67 @@ class _FeatureCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: InkWell(
-          onTap: onTap,
-          child: Stack(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      glowColor.withValues(alpha: 0.10),
-                      _RRColors.glassFill,
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: _RRColors.glassBorder),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 46,
-                      height: 46,
-                      decoration: BoxDecoration(
-                        color: glowColor.withValues(alpha: 0.18),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(color: glowColor.withValues(alpha: 0.35), blurRadius: 14),
-                        ],
-                      ),
-                      child: Icon(icon, size: 23, color: glowColor),
-                    ),
-                    const Spacer(),
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                        letterSpacing: -0.1,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 11, color: _RRColors.textMutedOnDark, height: 1.25),
-                    ),
-                  ],
-                ),
-              ),
-              // Thin light sheen along the top edge of every tile.
-              Positioned(
-                top: 0,
-                left: 14,
-                right: 14,
-                child: Container(
-                  height: 1,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: _RRColors.glassFill,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _RRColors.glassBorder),
+          boxShadow: [
+            BoxShadow(
+              color: glowColor.withValues(alpha: 0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.transparent,
-                        _RRColors.glassHighlight,
-                        Colors.transparent,
-                      ],
-                    ),
+                    color: glowColor.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: glowColor, size: 22),
+                ),
+                const Icon(Icons.arrow_forward_ios, color: _RRColors.textMutedOnDark, size: 12),
+              ],
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
                   ),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: _RRColors.textMutedOnDark,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
   }
+ 
 }

@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  static const String baseUrl =
+ static const String baseUrl =
     "http://10.175.184.187/roadrescue/road_rescue_api";
 
 
@@ -277,6 +277,152 @@ static Future<Map<String, dynamic>> getEmergencyContacts({
     );
 
     return jsonDecode(response.body);
+  } catch (e) {
+    return {
+      "success": false,
+      "message": "Connection error: $e",
+    };
+  }
+}
+
+
+// ================= SEND SOS =================
+static Future<Map<String, dynamic>> sendSos({
+  required int userId,
+  required double latitude,
+  required double longitude,
+  String? locationAddress,
+}) async {
+  final url = Uri.parse("$baseUrl/sos/send_sos.php");
+
+  try {
+    final response = await http.post(
+      url,
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json",
+      },
+      body: {
+        "user_id": userId.toString(),
+        "latitude": latitude.toString(),
+        "longitude": longitude.toString(),
+        "location_address": locationAddress ?? "",
+      },
+    );
+
+    print("--------------------------------------------------");
+    print("SOS SERVER RESPONSE STATUS: ${response.statusCode}");
+    print("SOS SERVER RAW RESPONSE: ${response.body}");
+    print("--------------------------------------------------");
+
+    return jsonDecode(response.body);
+  } catch (e) {
+    return {
+      "success": false,
+      "message": "Connection error: $e",
+    };
+  }
+}
+// ================= GET NOTIFICATIONS =================
+
+static Future<Map<String, dynamic>> getNotifications({
+  required int userId,
+}) async {
+
+  final url = Uri.parse(
+    "$baseUrl/notifications/get_notifications.php?user_id=$userId",
+  );
+
+  try {
+    final response = await http.get(
+      url,
+      headers: {
+        "Accept": "application/json",
+      },
+    );
+
+    print("NOTIFICATIONS RESPONSE: ${response.body}");
+
+    return jsonDecode(response.body);
+
+  } catch (e) {
+    return {
+      "success": false,
+      "message": "Connection error: $e",
+    };
+  }
+}
+
+// ================= AI DIAGNOSIS =================
+static Future<Map<String, dynamic>> getAiDiagnosis({
+  required int userId,
+  required String userMessage,
+}) async {
+  final url = Uri.parse("$baseUrl/ai/ai_diagnosis.php");
+
+  try {
+    final response = await http.post(
+      url,
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json",
+      },
+      body: {
+        "user_id": userId.toString(),
+        "user_message": userMessage,
+      },
+    );
+
+    print("--------------------------------------------------");
+    print("AI DIAGNOSIS RESPONSE STATUS: ${response.statusCode}");
+    print("AI DIAGNOSIS RAW RESPONSE: ${response.body}");
+    print("--------------------------------------------------");
+
+    try {
+      return jsonDecode(response.body);
+    } catch (_) {
+      return {
+        "success": false,
+        "message": "PHP Error Output: ${response.body.replaceAll(RegExp(r'<[^>]*>'), ' ')}"
+      };
+    }
+  } catch (e) {
+    return {
+      "success": false,
+      "message": "Connection error: $e",
+    };
+  }
+}
+
+// ================= ANALYZE DASHBOARD IMAGE =================
+static Future<Map<String, dynamic>> analyzeDashboardImage({
+  required int userId,
+  required String imagePath,
+}) async {
+  final url = Uri.parse("$baseUrl/ai/analyze_dashboard.php");
+
+  try {
+    final request = http.MultipartRequest("POST", url)
+      ..headers["Accept"] = "application/json"
+      ..fields["user_id"] = userId.toString()
+      ..files.add(await http.MultipartFile.fromPath("image", imagePath));
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+
+    print("--------------------------------------------------");
+    print("ANALYZE DASHBOARD RESPONSE STATUS: ${response.statusCode}");
+    print("ANALYZE DASHBOARD RAW RESPONSE: ${response.body}");
+    print("--------------------------------------------------");
+
+    try {
+      return jsonDecode(response.body);
+    } catch (_) {
+      return {
+        "success": false,
+        "message": "PHP Error Output: ${response.body.replaceAll(RegExp(r'<[^>]*>'), ' ')}"
+      };
+    }
   } catch (e) {
     return {
       "success": false,

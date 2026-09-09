@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:rr/theme/app_colors.dart';
 
 /// Shared dark/light hybrid theme tokens — kept in sync with home_screen.dart.
@@ -18,9 +19,17 @@ class _RRColors {
   static const textMutedOnDark = Color(0xFFA9B4C4);
 }
 
+/// Emergency dial numbers used by the quick-action buttons below.
+/// Update these if your deployment targets a different region —
+/// currently set to India's ambulance (108) and police (100) lines.
+class _EmergencyNumbers {
+  static const String ambulance = '108';
+  static const String police = '100';
+}
+
 /// SOS / Emergency screen.
 /// Big central SOS button + quick actions for accidents:
-/// share live location, call ambulance, call police, notify contacts.
+/// share live location, call ambulance, call police.
 class SosScreen extends StatefulWidget {
   const SosScreen({super.key});
 
@@ -48,6 +57,24 @@ class _SosScreenState extends State<SosScreen> {
         },
       ),
     );
+  }
+
+  /// Opens the phone's dialer pre-filled with [number]. This only opens
+  /// the dialer app (tel: intent) — it does not place the call
+  /// automatically, so the user still confirms by tapping "Call" in
+  /// their phone app.
+  Future<void> _callNumber(String number) async {
+    final Uri uri = Uri(scheme: 'tel', path: number);
+    final bool launched = await launchUrl(uri);
+
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not open dialer for $number'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -136,7 +163,7 @@ class _SosScreenState extends State<SosScreen> {
                         icon: Icons.local_hospital_rounded,
                         label: 'Call\nAmbulance',
                         color: AppColors.emergencyRed,
-                        onTap: () {},
+                        onTap: () => _callNumber(_EmergencyNumbers.ambulance),
                       ),
                     ),
                     const SizedBox(width: 14),
@@ -145,32 +172,17 @@ class _SosScreenState extends State<SosScreen> {
                         icon: Icons.local_police_rounded,
                         label: 'Call\nPolice',
                         color: const Color(0xFF7C93B8),
-                        onTap: () {},
+                        onTap: () => _callNumber(_EmergencyNumbers.police),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _QuickActionCard(
-                        icon: Icons.share_location_rounded,
-                        label: 'Share Live\nLocation',
-                        color: _RRColors.beaconAmber,
-                        onTap: () {},
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: _QuickActionCard(
-                        icon: Icons.contacts_rounded,
-                        label: 'Notify\nContacts',
-                        color: const Color(0xFFB388FF),
-                        onTap: () {},
-                      ),
-                    ),
-                  ],
+                _QuickActionCard(
+                  icon: Icons.share_location_rounded,
+                  label: 'Share Live Location',
+                  color: _RRColors.beaconAmber,
+                  onTap: () {},
                 ),
               ],
             ),

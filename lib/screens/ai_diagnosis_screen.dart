@@ -1,6 +1,11 @@
+import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:rr/theme/app_colors.dart';
+import 'package:rr/services/api_service.dart';
+import 'package:rr/services/session_manager.dart';
 
 /// Shared dark/light hybrid theme tokens — kept in sync with home_screen.dart.
 class _RRColors {
@@ -20,11 +25,13 @@ class _RRColors {
 }
 
 /// AI Vehicle Diagnosis screen.
-/// User picks a common symptom or types their own. A simulated AI response
-/// gives possible causes, basic troubleshooting, and whether to call a
-/// mechanic immediately. NOTE: this is a rule-based placeholder — swap
-/// `_generateDiagnosis` for a real API call to your PHP backend / AI
-/// service when ready.
+/// User picks a common symptom, types their own, speaks it via the mic
+/// button, or photographs a dashboard warning light. Text problems are
+/// sent to `ai_diagnosis.php`; warning-light photos are sent to
+/// `analyze_dashboard.php`. Both call the Gemini API and return a
+/// structured diagnosis (cause, safety advice, drivability, severity,
+/// next step, estimated repair cost). Every diagnosis is also saved
+/// server-side in the `ai_diagnosis` table for history.
 class AiDiagnosisScreen extends StatefulWidget {
   const AiDiagnosisScreen({super.key});
 
@@ -37,6 +44,14 @@ class _AiDiagnosisScreenState extends State<AiDiagnosisScreen> {
   final List<_ChatMessage> _messages = [];
   bool _isThinking = false;
 
+  // ---- Voice input state ----
+  final stt.SpeechToText _speech = stt.SpeechToText();
+  bool _speechAvailable = false;
+  bool _isListening = false;
+
+  // ---- Image input state ----
+  final ImagePicker _imagePicker = ImagePicker();
+
   final List<String> _quickPrompts = const [
     "Car won't start",
     'Battery warning light is on',
@@ -45,87 +60,178 @@ class _AiDiagnosisScreenState extends State<AiDiagnosisScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _initSpeech();
+  }
+
+  Future<void> _initSpeech() async {
+    final available = await _speech.initialize(
+      onStatus: (status) {
+        if (status == 'done' || status == 'notListening') {
+          if (mounted) setState(() => _isListening = false);
+        }
+      },
+      onError: (error) {
+        if (mounted) setState(() => _isListening = false);
+      },
+    );
+    if (mounted) setState(() => _speechAvailable = available);
+  }
+
+  Future<void> _toggleListening() async {
+    if (!_speechAvailable) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Speech recognition is not available on this device.')),
+      );
+      return;
+    }
+
+    if (_isListening) {
+      await _speech.stop();
+      setState(() => _isListening = false);
+      return;
+    }
+
+    setState(() => _isListening = true);
+    await _speech.listen(
+      onResult: (result) {
+        setState(() {
+          _controller.text = result.recognizedWords;
+          _controller.selection = TextSelection.fromPosition(
+            TextPosition(offset: _controller.text.length),
+          );
+        });
+      },
+      listenFor: const Duration(seconds: 30),
+      pauseFor: const Duration(seconds: 4),
+    );
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
+    _speech.stop();
     super.dispose();
   }
 
-  void _sendMessage(String text) {
-    if (text.trim().isEmpty) return;
+  Future<void> _pickWarningLightImage() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _ImageSourceSheet(),
+    );
+
+    if (source == null) return;
+
+    final XFile? picked = await _imagePicker.pickImage(
+      source: source,
+      maxWidth: 1600,
+      imageQuality: 85,
+    );
+
+    if (picked == null) return;
+
+    await _analyzeWarningLightImage(picked);
+  }
+
+  Future<void> _analyzeWarningLightImage(XFile image) async {
+    if (_isThinking) return;
+
+    setState(() {
+      _messages.add(_ChatMessage(text: '', isUser: true, imagePath: image.path));
+      _isThinking = true;
+    });
+
+    final user = await SessionManager.getUserDetails();
+    final userId = user["user_id"];
+
+    final result = await ApiService.analyzeDashboardImage(
+      userId: userId,
+      imagePath: image.path,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _isThinking = false;
+
+      if (result["success"] == true && result["diagnosis"] != null) {
+        final d = result["diagnosis"];
+        _messages.add(_ChatMessage(
+          text: '',
+          isUser: false,
+          diagnosis: _Diagnosis(
+            warningLightIdentified: d["warning_light_identified"]?.toString(),
+            possibleCause: (d["possible_cause"] ?? 'Not determined').toString(),
+            safetyAdvice: (d["safety_advice"] ?? '').toString(),
+            canBeDriven: (d["can_be_driven"] ?? 'No').toString().trim().toLowerCase() == 'yes',
+            severity: (d["severity"] ?? 'Medium').toString(),
+            nextStep: (d["recommended_next_step"] ?? '').toString(),
+            estimatedCost: (d["estimated_repair_cost"] ?? 'Not available').toString(),
+          ),
+        ));
+      } else {
+        _messages.add(_ChatMessage(
+          text: '',
+          isUser: false,
+          errorText: result["message"]?.toString() ??
+              "Couldn't reach the diagnosis service. Please try again.",
+        ));
+      }
+    });
+  }
+
+  Future<void> _sendMessage(String text) async {
+    if (text.trim().isEmpty || _isThinking) return;
+
+    if (_isListening) {
+      await _speech.stop();
+      setState(() => _isListening = false);
+    }
+
     setState(() {
       _messages.add(_ChatMessage(text: text, isUser: true));
       _isThinking = true;
       _controller.clear();
     });
 
-    // Simulated "AI thinking" delay before showing the diagnosis.
-    Future.delayed(const Duration(milliseconds: 700), () {
-      if (!mounted) return;
-      setState(() {
+    final user = await SessionManager.getUserDetails();
+    final userId = user["user_id"];
+
+    final result = await ApiService.getAiDiagnosis(
+      userId: userId,
+      userMessage: text,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _isThinking = false;
+
+      if (result["success"] == true && result["diagnosis"] != null) {
+        final d = result["diagnosis"];
         _messages.add(_ChatMessage(
           text: '',
           isUser: false,
-          diagnosis: _generateDiagnosis(text),
+          diagnosis: _Diagnosis(
+            possibleCause: (d["possible_cause"] ?? 'Not determined').toString(),
+            safetyAdvice: (d["safety_advice"] ?? '').toString(),
+            canBeDriven: (d["can_be_driven"] ?? 'No').toString().trim().toLowerCase() == 'yes',
+            severity: (d["severity"] ?? 'Medium').toString(),
+            nextStep: (d["recommended_next_step"] ?? '').toString(),
+            estimatedCost: (d["estimated_repair_cost"] ?? 'Not available').toString(),
+          ),
         ));
-        _isThinking = false;
-      });
+      } else {
+        _messages.add(_ChatMessage(
+          text: '',
+          isUser: false,
+          errorText: result["message"]?.toString() ??
+              "Couldn't reach the diagnosis service. Please try again.",
+        ));
+      }
     });
-  }
-
-  /// Very simple keyword-matched placeholder logic.
-  /// Replace with a real AI/LLM call to your backend for the final build.
-  _Diagnosis _generateDiagnosis(String input) {
-    final String lower = input.toLowerCase();
-
-    if (lower.contains("won't start") || lower.contains('not starting') || lower.contains('wont start')) {
-      return const _Diagnosis(
-        causes: ['Dead or weak battery', 'Faulty starter motor', 'Empty fuel tank', 'Bad ignition switch'],
-        tips: ['Check if headlights/dashboard lights turn on', 'Try jump-starting the battery', 'Check fuel gauge'],
-        callMechanic: true,
-      );
-    }
-    if (lower.contains('battery')) {
-      return const _Diagnosis(
-        causes: ['Battery is undercharged or old', 'Loose or corroded terminals', 'Alternator not charging properly'],
-        tips: ['Check terminal connections are tight and clean', 'Avoid switching off engine until you reach a garage'],
-        callMechanic: true,
-      );
-    }
-    if (lower.contains('overheat')) {
-      return const _Diagnosis(
-        causes: ['Low coolant level', 'Faulty radiator fan', 'Coolant leak', 'Blocked radiator'],
-        tips: ['Pull over safely and switch off the engine immediately', 'Do NOT open the radiator cap while hot', 'Wait for the engine to cool before checking coolant'],
-        callMechanic: true,
-      );
-    }
-    if (lower.contains('noise') || lower.contains('sound')) {
-      return const _Diagnosis(
-        causes: ['Worn belt or pulley', 'Low engine oil', 'Loose exhaust component'],
-        tips: ['Check engine oil level', 'Avoid high speeds until inspected', 'Note when the noise happens (idle, acceleration, braking)'],
-        callMechanic: false,
-      );
-    }
-    if (lower.contains('tyre') || lower.contains('tire') || lower.contains('flat')) {
-      return const _Diagnosis(
-        causes: ['Puncture from road debris', 'Under-inflation', 'Worn-out tyre tread'],
-        tips: ['Use the spare tyre if you have one and know how to change it', 'Turn on hazard lights and move to a safe spot'],
-        callMechanic: false,
-      );
-    }
-    if (lower.contains('brake')) {
-      return const _Diagnosis(
-        causes: ['Worn brake pads', 'Low brake fluid', 'Air in brake lines'],
-        tips: ['Avoid driving further if brakes feel soft or unresponsive', 'Do not ignore grinding or squealing sounds'],
-        callMechanic: true,
-      );
-    }
-
-    // Fallback for anything unmatched.
-    return const _Diagnosis(
-      causes: ['Could be several things — hard to tell without more detail'],
-      tips: ['Describe when the issue happens (starting, driving, braking, idle)', 'Check for warning lights on your dashboard'],
-      callMechanic: true,
-    );
   }
 
   @override
@@ -167,16 +273,45 @@ class _AiDiagnosisScreenState extends State<AiDiagnosisScreen> {
                             return const _ThinkingBubble();
                           }
                           final msg = _messages[index];
-                          return msg.isUser
-                              ? _UserBubble(text: msg.text)
-                              : _DiagnosisBubble(diagnosis: msg.diagnosis!);
+                          if (msg.isUser) {
+                            return msg.imagePath != null
+                                ? _UserImageBubble(imagePath: msg.imagePath!)
+                                : _UserBubble(text: msg.text);
+                          }
+                          if (msg.diagnosis != null) return _DiagnosisBubble(diagnosis: msg.diagnosis!);
+                          return _ErrorBubble(text: msg.errorText ?? 'Something went wrong.');
                         },
                       ),
               ),
+              if (_isListening) _buildListeningBanner(),
               _buildInputBar(),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildListeningBanner() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: const BoxDecoration(
+              color: AppColors.emergencyRed,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Text(
+            'Listening...',
+            style: TextStyle(fontSize: 12, color: _RRColors.textMutedOnDark, fontStyle: FontStyle.italic),
+          ),
+        ],
       ),
     );
   }
@@ -220,6 +355,11 @@ class _AiDiagnosisScreenState extends State<AiDiagnosisScreen> {
               return _QuickPromptChip(label: p, onTap: () => _sendMessage(p));
             }).toList(),
           ),
+          const SizedBox(height: 16),
+          _QuickPromptChip(
+            label: '📷 Photograph a warning light',
+            onTap: _pickWarningLightImage,
+          ),
         ],
       ),
     );
@@ -230,6 +370,11 @@ class _AiDiagnosisScreenState extends State<AiDiagnosisScreen> {
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
       child: Row(
         children: [
+          IconButton(
+            icon: const Icon(Icons.camera_alt_outlined, color: _RRColors.textMutedOnDark),
+            onPressed: _isThinking ? null : _pickWarningLightImage,
+            tooltip: 'Photograph a dashboard warning light',
+          ),
           Expanded(
             child: TextField(
               controller: _controller,
@@ -237,7 +382,7 @@ class _AiDiagnosisScreenState extends State<AiDiagnosisScreen> {
               style: const TextStyle(color: Colors.white),
               cursorColor: _RRColors.aiViolet,
               decoration: InputDecoration(
-                hintText: 'Describe the problem...',
+                hintText: _isListening ? 'Speak now...' : 'Describe the problem...',
                 hintStyle: const TextStyle(color: _RRColors.textMutedOnDark),
                 filled: true,
                 fillColor: _RRColors.glassFill,
@@ -253,6 +398,13 @@ class _AiDiagnosisScreenState extends State<AiDiagnosisScreen> {
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
                   borderSide: const BorderSide(color: _RRColors.aiViolet, width: 1.4),
+                ),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _isListening ? Icons.mic : Icons.mic_none_rounded,
+                    color: _isListening ? AppColors.emergencyRed : _RRColors.textMutedOnDark,
+                  ),
+                  onPressed: _toggleListening,
                 ),
               ),
             ),
@@ -275,6 +427,87 @@ class _AiDiagnosisScreenState extends State<AiDiagnosisScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Bottom sheet offering "Camera" or "Gallery" as the image source for a
+/// dashboard warning light photo, styled to match the glass theme.
+class _ImageSourceSheet extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+          decoration: BoxDecoration(
+            color: _RRColors.canvasMid.withValues(alpha: 0.92),
+            border: const Border(top: BorderSide(color: _RRColors.glassBorder)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: _RRColors.glassBorder,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const Text(
+                'Warning Light Photo',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+              const SizedBox(height: 16),
+              _sourceOption(
+                context,
+                icon: Icons.photo_camera_outlined,
+                label: 'Take Photo',
+                source: ImageSource.camera,
+              ),
+              const SizedBox(height: 10),
+              _sourceOption(
+                context,
+                icon: Icons.photo_library_outlined,
+                label: 'Choose from Gallery',
+                source: ImageSource.gallery,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sourceOption(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required ImageSource source,
+  }) {
+    return InkWell(
+      onTap: () => Navigator.of(context).pop(source),
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: _RRColors.glassFill,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _RRColors.glassBorder),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: _RRColors.aiViolet, size: 20),
+            const SizedBox(width: 12),
+            Text(label, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
+          ],
+        ),
       ),
     );
   }
@@ -320,14 +553,34 @@ class _ChatMessage {
   final String text;
   final bool isUser;
   final _Diagnosis? diagnosis;
-  _ChatMessage({required this.text, required this.isUser, this.diagnosis});
+  final String? errorText;
+  final String? imagePath;
+  _ChatMessage({
+    required this.text,
+    required this.isUser,
+    this.diagnosis,
+    this.errorText,
+    this.imagePath,
+  });
 }
 
 class _Diagnosis {
-  final List<String> causes;
-  final List<String> tips;
-  final bool callMechanic;
-  const _Diagnosis({required this.causes, required this.tips, required this.callMechanic});
+  final String? warningLightIdentified;
+  final String possibleCause;
+  final String safetyAdvice;
+  final bool canBeDriven;
+  final String severity;
+  final String nextStep;
+  final String estimatedCost;
+  const _Diagnosis({
+    this.warningLightIdentified,
+    required this.possibleCause,
+    required this.safetyAdvice,
+    required this.canBeDriven,
+    required this.severity,
+    required this.nextStep,
+    required this.estimatedCost,
+  });
 }
 
 class _UserBubble extends StatelessWidget {
@@ -356,6 +609,43 @@ class _UserBubble extends StatelessWidget {
           ],
         ),
         child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 14)),
+      ),
+    );
+  }
+}
+
+/// User message bubble showing the warning-light photo the user
+/// captured or picked, sent in place of a text bubble.
+class _UserImageBubble extends StatelessWidget {
+  final String imagePath;
+  const _UserImageBubble({required this.imagePath});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.6),
+        decoration: BoxDecoration(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+            bottomLeft: Radius.circular(16),
+          ),
+          border: Border.all(color: _RRColors.glassBorder),
+          boxShadow: [
+            BoxShadow(color: _RRColors.aiViolet.withValues(alpha: 0.2), blurRadius: 10),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+            bottomLeft: Radius.circular(16),
+          ),
+          child: Image.file(File(imagePath), fit: BoxFit.cover),
+        ),
       ),
     );
   }
@@ -391,6 +681,62 @@ class _ThinkingBubble extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Small colored pill showing how urgent the issue is. Green/amber/red
+/// map to Low/Medium/High so it reads at a glance without needing to
+/// read the label.
+class _SeverityBadge extends StatelessWidget {
+  final String severity;
+  const _SeverityBadge({required this.severity});
+
+  Color get _color {
+    switch (severity.trim().toLowerCase()) {
+      case 'high':
+        return AppColors.emergencyRed;
+      case 'low':
+        return AppColors.successGreen;
+      case 'medium':
+      default:
+        return _RRColors.beaconAmber;
+    }
+  }
+
+  IconData get _icon {
+    switch (severity.trim().toLowerCase()) {
+      case 'high':
+        return Icons.priority_high_rounded;
+      case 'low':
+        return Icons.check_circle_outline_rounded;
+      case 'medium':
+      default:
+        return Icons.info_outline_rounded;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _color;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(_icon, size: 13, color: color),
+          const SizedBox(width: 4),
+          Text(
+            '${severity.trim()} Severity',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
+          ),
+        ],
       ),
     );
   }
@@ -432,54 +778,90 @@ class _DiagnosisBubble extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Possible Causes', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _RRColors.aiViolet)),
-                const SizedBox(height: 6),
-                ...diagnosis.causes.map((c) => _bullet(c)),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Diagnosis',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _RRColors.textMutedOnDark),
+                      ),
+                    ),
+                    _SeverityBadge(severity: diagnosis.severity),
+                  ],
+                ),
                 const SizedBox(height: 12),
-                const Text('Basic Troubleshooting', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _RRColors.aiViolet)),
-                const SizedBox(height: 6),
-                ...diagnosis.tips.map((t) => _bullet(t)),
+                if (diagnosis.warningLightIdentified != null &&
+                    diagnosis.warningLightIdentified!.trim().isNotEmpty) ...[
+                  _sectionLabel('Warning Light Identified'),
+                  const SizedBox(height: 4),
+                  Text(diagnosis.warningLightIdentified!, style: _bodyStyle),
+                  const SizedBox(height: 12),
+                ],
+                _sectionLabel('Possible Cause'),
+                const SizedBox(height: 4),
+                Text(diagnosis.possibleCause, style: _bodyStyle),
+                const SizedBox(height: 12),
+                _sectionLabel('Safety Advice'),
+                const SizedBox(height: 4),
+                Text(diagnosis.safetyAdvice, style: _bodyStyle),
                 const SizedBox(height: 12),
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
-                    color: diagnosis.callMechanic
-                        ? AppColors.emergencyRed.withValues(alpha: 0.14)
-                        : AppColors.successGreen.withValues(alpha: 0.14),
+                    color: diagnosis.canBeDriven
+                        ? AppColors.successGreen.withValues(alpha: 0.14)
+                        : AppColors.emergencyRed.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: diagnosis.callMechanic
-                          ? AppColors.emergencyRed.withValues(alpha: 0.4)
-                          : AppColors.successGreen.withValues(alpha: 0.4),
+                      color: diagnosis.canBeDriven
+                          ? AppColors.successGreen.withValues(alpha: 0.4)
+                          : AppColors.emergencyRed.withValues(alpha: 0.4),
                     ),
                   ),
                   child: Row(
                     children: [
                       Icon(
-                        diagnosis.callMechanic ? Icons.warning_amber_rounded : Icons.check_circle_outline_rounded,
+                        diagnosis.canBeDriven ? Icons.check_circle_outline_rounded : Icons.warning_amber_rounded,
                         size: 18,
-                        color: diagnosis.callMechanic ? AppColors.emergencyRed : AppColors.successGreen,
+                        color: diagnosis.canBeDriven ? AppColors.successGreen : AppColors.emergencyRed,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          diagnosis.callMechanic
-                              ? 'Recommended: call a mechanic now'
-                              : 'You can likely continue, but get it checked soon',
+                          diagnosis.canBeDriven
+                              ? 'Can be driven: Yes — but get it checked soon'
+                              : 'Can be driven: No — do not continue driving',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: diagnosis.callMechanic ? AppColors.emergencyRed : AppColors.successGreen,
+                            color: diagnosis.canBeDriven ? AppColors.successGreen : AppColors.emergencyRed,
                           ),
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 12),
+                _sectionLabel('Recommended Next Step'),
+                const SizedBox(height: 4),
+                Text(diagnosis.nextStep, style: _bodyStyle),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(Icons.currency_rupee_rounded, size: 16, color: _RRColors.beaconAmber),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        'Estimated repair cost: ${diagnosis.estimatedCost}',
+                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _RRColors.beaconAmber),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
                 const Text(
-                  'This is guidance only, not a professional inspection.',
+                  'AI-generated guidance only, not a professional inspection.',
                   style: TextStyle(fontSize: 10, color: _RRColors.textMutedOnDark, fontStyle: FontStyle.italic),
                 ),
               ],
@@ -490,19 +872,47 @@ class _DiagnosisBubble extends StatelessWidget {
     );
   }
 
-  Widget _bullet(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 5),
-            child: Icon(Icons.circle, size: 5, color: _RRColors.textMutedOnDark),
+  static const _bodyStyle = TextStyle(fontSize: 12.5, color: Colors.white, height: 1.4);
+
+  Widget _sectionLabel(String label) {
+    return Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _RRColors.aiViolet));
+  }
+}
+
+/// Shown when the diagnosis call fails (network error, Gemini error, or
+/// an empty/invalid response) so the user gets clear feedback instead
+/// of a silently missing reply.
+class _ErrorBubble extends StatelessWidget {
+  final String text;
+  const _ErrorBubble({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
+        decoration: BoxDecoration(
+          color: AppColors.emergencyRed.withValues(alpha: 0.12),
+          border: Border.all(color: AppColors.emergencyRed.withValues(alpha: 0.4)),
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+            bottomRight: Radius.circular(16),
           ),
-          const SizedBox(width: 8),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 12.5, color: Colors.white))),
-        ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.error_outline_rounded, size: 16, color: AppColors.emergencyRed),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(text, style: const TextStyle(fontSize: 12.5, color: AppColors.emergencyRed)),
+            ),
+          ],
+        ),
       ),
     );
   }
