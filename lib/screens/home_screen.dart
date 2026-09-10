@@ -264,7 +264,7 @@ void detectPossibleAccident() {
                     accidentDetected = false;
                   });
 
-                  handleEmergency();
+                showEmergencyDetailsThenSend();
                 }
               },
             );
@@ -353,7 +353,7 @@ void detectPossibleAccident() {
                     accidentDetected = false;
                   });
 
-                  handleEmergency();
+                  showEmergencyDetailsThenSend();
                 },
                 child: const Text("SEND HELP"),
               ),
@@ -383,6 +383,75 @@ Future<void> sendSmsViaDefaultApp(
     print("❌ Could not open SMS app: $e");
   }
 }
+
+Future<void> showEmergencyDetailsThenSend() async {
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) {
+      return const AlertDialog(
+        title: Text(
+          "🚨 Emergency Alert",
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.warning_amber_rounded,
+              color: Colors.red,
+              size: 50,
+            ),
+
+            SizedBox(height: 15),
+
+            Text(
+              "Possible accident detected!",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            SizedBox(height: 15),
+
+            Text(
+              "📡 Sudden impact detected by sensors",
+              textAlign: TextAlign.center,
+            ),
+
+            SizedBox(height: 8),
+
+            Text(
+              "📍 Location detected",
+              textAlign: TextAlign.center,
+            ),
+
+            SizedBox(height: 8),
+
+            Text(
+              "Opening emergency messages...",
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    },
+  );
+
+  // Wait for 4 seconds
+  await Future.delayed(const Duration(seconds: 4));
+
+  // Close this popup
+  if (mounted && Navigator.of(context).canPop()) {
+    Navigator.of(context).pop();
+  }
+
+  // Start emergency process
+  await handleEmergency();
+}
+
 Future<void> handleEmergency() async {
 
   print("🚨 HANDLE EMERGENCY STARTED");
@@ -491,14 +560,14 @@ if (contactResponse["success"] == true) {
     }
 
     print("📱 Attempting SMS to: $phoneNumber");
-
-    await sendSmsViaDefaultApp(
+await sendSmsViaDefaultApp(
   phoneNumber,
   emergencyMessage,
 );
   }
 }
 // 🚨 Send emergency alert to backend
+
 final sosResponse = await ApiService.sendSos(
   userId: userId,
   latitude: position.latitude,

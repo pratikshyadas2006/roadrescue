@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 
 class ApiService {
   static const String baseUrl =
-      "http://10.153.89.128/rr/road_rescue_api";
+      "http://10.153.89.96/rr/road_rescue_api";
 
   // ================= PRIVATE POST HELPER =================
   static Future<Map<String, dynamic>> _post(

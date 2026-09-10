@@ -4,6 +4,7 @@ import 'package:rr/theme/app_colors.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:rr/services/api_service.dart';
 import 'package:rr/services/session_manager.dart';
+import 'package:android_intent_plus/android_intent.dart';
 
 /// Shared dark/light hybrid theme tokens — kept in sync with home_screen.dart.
 class _RRColors {
@@ -34,9 +35,47 @@ class SosScreen extends StatefulWidget {
 class _SosScreenState extends State<SosScreen> {
   bool _sosActive = false;
 
-  Future<void> _triggerSos() async {
+  Future<void> sendSmsViaDefaultApp(
+  String phoneNumber,
+  String message,
+) async {
+  final intent = AndroidIntent(
+    action: 'android.intent.action.SENDTO',
+    data: 'smsto:$phoneNumber',
+    arguments: <String, dynamic>{
+      'sms_body': message,
+    },
+  );
+
+  try {
+    await intent.launch();
+    print("📱 Opening SMS app for: $phoneNumber");
+  } catch (e) {
+    print("❌ Could not open SMS app: $e");
+  }
+}
+
+ Future<void> _triggerSos() async {
+  if (_sosActive) return;
 
   setState(() => _sosActive = true);
+
+  // 📍 Check location service
+  bool serviceEnabled =
+      await Geolocator.isLocationServiceEnabled();
+
+  if (!serviceEnabled) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("📍 Please turn on your location."),
+        ),
+      );
+    }
+
+    setState(() => _sosActive = false);
+    return;
+  }
 
   // 📍 Check location permission
   LocationPermission permission =
@@ -48,7 +87,6 @@ class _SosScreenState extends State<SosScreen> {
 
   if (permission == LocationPermission.denied ||
       permission == LocationPermission.deniedForever) {
-
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -62,7 +100,6 @@ class _SosScreenState extends State<SosScreen> {
   }
 
   try {
-
     // 📍 Get current location
     Position position =
         await Geolocator.getCurrentPosition(
@@ -82,7 +119,6 @@ class _SosScreenState extends State<SosScreen> {
     final userId = user["user_id"];
 
     if (userId == null) {
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -103,10 +139,10 @@ class _SosScreenState extends State<SosScreen> {
       userId: userId,
     );
 
-    print("👥 Emergency Contacts Response:");
+    print("👥 Emergency Contacts:");
     print(contactResponse);
 
-    // 🚨 Send SOS to backend
+    // 🚨 Save SOS to backend
     final sosResponse =
         await ApiService.sendSos(
       userId: userId,
@@ -119,9 +155,8 @@ class _SosScreenState extends State<SosScreen> {
     print("🚨 SOS Response:");
     print(sosResponse);
 
-    // ❌ Check if SOS failed
+    // ❌ Check backend result
     if (sosResponse["success"] != true) {
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -137,27 +172,143 @@ class _SosScreenState extends State<SosScreen> {
       return;
     }
 
-    // ✅ Show SOS success popup
-    if (mounted) {
-      showModalBottomSheet(
-        context: context,
-        isDismissible: false,
-        enableDrag: false,
-        backgroundColor: Colors.transparent,
-        builder: (context) => _SosSentSheet(
-          onClose: () {
-            Navigator.of(context).pop();
+    // 🚨 Emergency message
+    final String emergencyMessage = '''
+🚨 EMERGENCY ALERT! 🚨
 
-            if (mounted) {
-              setState(() => _sosActive = false);
-            }
-          },
-        ),
+I may need immediate help.
+
+📍 My current location:
+https://www.google.com/maps?q=${position.latitude},${position.longitude}
+
+Please contact me or send help immediately.
+''';
+
+    // ==========================================
+    // SHOW LOCATION POPUP FOR 4 SECONDS
+    // ==========================================
+
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text(
+              "🚨 SOS Activated",
+              textAlign: TextAlign.center,
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.location_on,
+                  color: Colors.red,
+                  size: 50,
+                ),
+
+                const SizedBox(height: 15),
+
+                const Text(
+                  "Emergency location detected",
+                  textAlign: TextAlign.center,
+                ),
+
+                const SizedBox(height: 12),
+
+                Text(
+                  "Latitude: ${position.latitude}",
+                  textAlign: TextAlign.center,
+                ),
+
+                Text(
+                  "Longitude: ${position.longitude}",
+                  textAlign: TextAlign.center,
+                ),
+
+                const SizedBox(height: 15),
+
+                const Text(
+                  "Preparing emergency message...",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       );
+
+      // ⏳ Show popup for 4 seconds
+      await Future.delayed(
+        const Duration(seconds: 4),
+      );
+
+      if (mounted && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+    }
+
+    // ==========================================
+    // 📱 OPEN SMS APP FOR EMERGENCY CONTACTS
+    // ==========================================
+
+    if (contactResponse["success"] == true) {
+      final contacts = contactResponse["contacts"];
+
+      if (contacts != null && contacts.isNotEmpty) {
+        for (final contact in contacts) {
+          String phoneNumber =
+              contact["phone"].toString().trim();
+
+          // Remove spaces and hyphens
+          phoneNumber = phoneNumber.replaceAll(
+            RegExp(r'[\s-]'),
+            '',
+          );
+
+          // Add India country code
+          if (!phoneNumber.startsWith("+91")) {
+            if (phoneNumber.startsWith("91") &&
+                phoneNumber.length == 12) {
+              phoneNumber = "+$phoneNumber";
+            } else {
+              phoneNumber = "+91$phoneNumber";
+            }
+          }
+
+          print(
+            "📱 Opening SMS for: $phoneNumber",
+          );
+
+          await sendSmsViaDefaultApp(
+            phoneNumber,
+            emergencyMessage,
+          );
+
+          // Opens the SMS app
+          break;
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                "No emergency contacts found.",
+              ),
+            ),
+          );
+        }
+      }
+    }
+
+    if (mounted) {
+      setState(() => _sosActive = false);
     }
 
   } catch (e) {
-
     print("SOS ERROR: $e");
 
     if (mounted) {
@@ -172,6 +323,9 @@ class _SosScreenState extends State<SosScreen> {
   }
 }
 
+
+  // 📍 Check location permission
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
