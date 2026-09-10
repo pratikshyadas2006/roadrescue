@@ -34,14 +34,15 @@ class SosScreen extends StatefulWidget {
 
 class _SosScreenState extends State<SosScreen> {
   bool _sosActive = false;
-
-  Future<void> sendSmsViaDefaultApp(
-  String phoneNumber,
+Future<void> sendSmsViaDefaultApp(
+  List<String> phoneNumbers,
   String message,
 ) async {
+  final recipients = phoneNumbers.join(',');
+
   final intent = AndroidIntent(
     action: 'android.intent.action.SENDTO',
-    data: 'smsto:$phoneNumber',
+    data: 'smsto:$recipients',
     arguments: <String, dynamic>{
       'sms_body': message,
     },
@@ -49,7 +50,7 @@ class _SosScreenState extends State<SosScreen> {
 
   try {
     await intent.launch();
-    print("📱 Opening SMS app for: $phoneNumber");
+    print("📱 Opening SMS app for: $recipients");
   } catch (e) {
     print("❌ Could not open SMS app: $e");
   }
@@ -254,55 +255,50 @@ Please contact me or send help immediately.
     // ==========================================
     // 📱 OPEN SMS APP FOR EMERGENCY CONTACTS
     // ==========================================
+if (contactResponse["success"] == true) {
+  final contacts = contactResponse["contacts"];
 
-    if (contactResponse["success"] == true) {
-      final contacts = contactResponse["contacts"];
+  if (contacts != null && contacts.isNotEmpty) {
+    List<String> phoneNumbers = [];
 
-      if (contacts != null && contacts.isNotEmpty) {
-        for (final contact in contacts) {
-          String phoneNumber =
-              contact["phone"].toString().trim();
+    for (final contact in contacts) {
+      String phoneNumber =
+          contact["phone"].toString().trim();
 
-          // Remove spaces and hyphens
-          phoneNumber = phoneNumber.replaceAll(
-            RegExp(r'[\s-]'),
-            '',
-          );
+      // Remove spaces and hyphens
+      phoneNumber = phoneNumber.replaceAll(
+        RegExp(r'[\s-]'),
+        '',
+      );
 
-          // Add India country code
-          if (!phoneNumber.startsWith("+91")) {
-            if (phoneNumber.startsWith("91") &&
-                phoneNumber.length == 12) {
-              phoneNumber = "+$phoneNumber";
-            } else {
-              phoneNumber = "+91$phoneNumber";
-            }
-          }
-
-          print(
-            "📱 Opening SMS for: $phoneNumber",
-          );
-
-          await sendSmsViaDefaultApp(
-            phoneNumber,
-            emergencyMessage,
-          );
-
-          // Opens the SMS app
-          break;
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                "No emergency contacts found.",
-              ),
-            ),
-          );
+      // Add India country code
+      if (!phoneNumber.startsWith("+91")) {
+        if (phoneNumber.startsWith("91") &&
+            phoneNumber.length == 12) {
+          phoneNumber = "+$phoneNumber";
+        } else {
+          phoneNumber = "+91$phoneNumber";
         }
       }
+
+      phoneNumbers.add(phoneNumber);
     }
+
+    // 📱 Open SMS once with ALL emergency contacts
+    await sendSmsViaDefaultApp(
+      phoneNumbers,
+      emergencyMessage,
+    );
+  } else {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("No emergency contacts found."),
+        ),
+      );
+    }
+  }
+}
 
     if (mounted) {
       setState(() => _sosActive = false);

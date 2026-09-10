@@ -365,12 +365,14 @@ void detectPossibleAccident() {
   );
 }
 Future<void> sendSmsViaDefaultApp(
-  String phoneNumber,
+  List<String> phoneNumbers,
   String message,
 ) async {
+  final recipients = phoneNumbers.join(',');
+
   final intent = AndroidIntent(
     action: 'android.intent.action.SENDTO',
-    data: 'smsto:$phoneNumber',
+    data: 'smsto:$recipients',
     arguments: <String, dynamic>{
       'sms_body': message,
     },
@@ -378,12 +380,11 @@ Future<void> sendSmsViaDefaultApp(
 
   try {
     await intent.launch();
-    print("📱 Opening default SMS app for: $phoneNumber");
+    print("📱 Opening SMS app for: $recipients");
   } catch (e) {
     print("❌ Could not open SMS app: $e");
   }
 }
-
 Future<void> showEmergencyDetailsThenSend() async {
   showDialog(
     context: context,
@@ -544,29 +545,38 @@ print(contactResponse);
 if (contactResponse["success"] == true) {
   final contacts = contactResponse["contacts"];
 
+  List<String> phoneNumbers = [];
+
   for (final contact in contacts) {
     String phoneNumber = contact["phone"].toString().trim();
 
     // Remove spaces and hyphens
-    phoneNumber = phoneNumber.replaceAll(RegExp(r'[\s-]'), '');
+    phoneNumber = phoneNumber.replaceAll(
+      RegExp(r'[\s-]'),
+      '',
+    );
 
-    // Add India country code if needed
+    // Add India country code
     if (!phoneNumber.startsWith("+91")) {
-      if (phoneNumber.startsWith("91") && phoneNumber.length == 12) {
+      if (phoneNumber.startsWith("91") &&
+          phoneNumber.length == 12) {
         phoneNumber = "+$phoneNumber";
       } else {
         phoneNumber = "+91$phoneNumber";
       }
     }
 
-    print("📱 Attempting SMS to: $phoneNumber");
-await sendSmsViaDefaultApp(
-  phoneNumber,
-  emergencyMessage,
-);
+    phoneNumbers.add(phoneNumber);
   }
-}
-// 🚨 Send emergency alert to backend
+
+  // 📱 Open SMS app ONCE with all emergency contacts
+  if (phoneNumbers.isNotEmpty) {
+    await sendSmsViaDefaultApp(
+      phoneNumbers,
+      emergencyMessage,
+    );
+  }
+}// 🚨 Send emergency alert to backend
 
 final sosResponse = await ApiService.sendSos(
   userId: userId,
