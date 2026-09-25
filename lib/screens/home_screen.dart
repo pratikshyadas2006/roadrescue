@@ -77,12 +77,45 @@ double maxRotation = 0.0;
 int abnormalAccelerationCount = 0;
 int abnormalRotationCount = 0;
 
+// ---------------------------------------------------------------------
+// Crash-detection tuning
+// ---------------------------------------------------------------------
+// IMPORTANT: If you flip this to `true`, the app will treat a fairly
+// gentle shake as a "crash" so you can verify the alert dialog, alarm
+// sound, and SMS pipeline actually fire end-to-end. Set it back to
+// `false` before shipping — the debug thresholds are WAY too sensitive
+// for real-world use and will cause false SOS alerts.
+static const bool _debugCrashDetection = true;
+
+// Production thresholds (tune these based on real test-drop data).
+static const double _impactThreshold = 18.0; // m/s², first-hit trigger
+static const double _confirmAccelThreshold = 12.0; // m/s², counts during confirm window
+static const double _confirmRotationThreshold = 5.0; // rad/s, max seen during confirm window
+static const int _confirmationWindowMs = 1500;
+
+// Debug thresholds — reachable by shaking the phone in your hand.
+static const double _debugImpactThreshold = 3.0;
+static const double _debugConfirmAccelThreshold = 2.0;
+static const double _debugConfirmRotationThreshold = 0.8;
+
+double get _activeImpactThreshold =>
+    _debugCrashDetection ? _debugImpactThreshold : _impactThreshold;
+double get _activeConfirmAccelThreshold =>
+    _debugCrashDetection ? _debugConfirmAccelThreshold : _confirmAccelThreshold;
+double get _activeConfirmRotationThreshold =>
+    _debugCrashDetection ? _debugConfirmRotationThreshold : _confirmRotationThreshold;
+
 void startSensorMonitoring() {
   // Prevent duplicate sensor listeners
   accelerometerSubscription?.cancel();
   gyroscopeSubscription?.cancel();
 
-  accelerometerSubscription = userAccelerometerEventStream().listen((event) {
+  // NOTE: the default sampling period (~200ms / 5Hz) can miss a short,
+  // sharp impact spike entirely. Use a much faster interval so brief
+  // shocks are actually captured.
+  accelerometerSubscription = userAccelerometerEventStream(
+    samplingPeriod: SensorInterval.gameInterval,
+  ).listen((event) {
     final value = sqrt(
       event.x * event.x +
           event.y * event.y +
@@ -99,7 +132,7 @@ debugPrint("Acceleration:$value");
     maxAcceleration = value;
   }
 
-  if (value >= 12.0) {
+  if (value >= _activeConfirmAccelThreshold) {
     abnormalAccelerationCount++;
   }
 }
@@ -112,7 +145,9 @@ detectImpact(value);
     // Stage 1 will be added here next
   });
 
-  gyroscopeSubscription = gyroscopeEventStream().listen((event) {
+  gyroscopeSubscription = gyroscopeEventStream(
+    samplingPeriod: SensorInterval.gameInterval,
+  ).listen((event) {
     final value = sqrt(
       event.x * event.x +
           event.y * event.y +
@@ -130,7 +165,7 @@ if (impactDetected) {
     maxRotation = value;
   }
 
-  if (value >= 4.5) {
+  if (value >= _activeConfirmRotationThreshold) {
     abnormalRotationCount++;
   }
 }
@@ -164,7 +199,7 @@ void detectImpact(double accelerationValue) {
     return;
   }
 
-  const double impactThreshold = 18.0;
+  final double impactThreshold = _activeImpactThreshold;
 
   if (accelerationValue >= impactThreshold) {
     impactDetected = true;
@@ -175,13 +210,13 @@ void detectImpact(double accelerationValue) {
     abnormalAccelerationCount = 1;
     abnormalRotationCount = 0;
 
-    debugPrint("🚨 STAGE 1 STARTED");
+    debugPrint("🚨 STAGE 1 STARTED (threshold=$impactThreshold, debug=$_debugCrashDetection)");
     debugPrint("Initial Impact: $accelerationValue");
 
     impactTimer?.cancel();
 
     impactTimer = Timer(
-      const Duration(milliseconds: 1500),
+      Duration(milliseconds: _confirmationWindowMs),
       () {
         if (!mounted) return;
 
@@ -196,10 +231,10 @@ void detectImpact(double accelerationValue) {
           "Rotation Events: $abnormalRotationCount",
         );
 
-        const double rotationThreshold = 5.0;
+        final double rotationThreshold = _activeConfirmRotationThreshold;
 
         bool crashConfirmed =
-            maxAcceleration >= 18.0 &&
+            maxAcceleration >= _activeImpactThreshold &&
             maxRotation >= rotationThreshold &&
             abnormalAccelerationCount >= 2;
 
