@@ -2,6 +2,11 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:rr/theme/app_colors.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:rr/services/api_service.dart';
+import 'package:rr/services/session_manager.dart';
+import 'package:android_intent_plus/android_intent.dart';
+
 
 /// Shared dark/light hybrid theme tokens — kept in sync with home_screen.dart.
 class _RRColors {
@@ -21,15 +26,17 @@ class _RRColors {
 
 /// Emergency dial numbers used by the quick-action buttons below.
 /// Update these if your deployment targets a different region —
-/// currently set to India's ambulance (108) and police (100) lines.
+/// currently set to India's ambulance (108), police (100), and
+/// fuel/roadside assistance (1033) lines.
 class _EmergencyNumbers {
   static const String ambulance = '108';
   static const String police = '100';
+  static const String fuel = '1033';
 }
 
 /// SOS / Emergency screen.
 /// Big central SOS button + quick actions for accidents:
-/// share live location, call ambulance, call police.
+/// call ambulance, call police, quick fuel.
 class SosScreen extends StatefulWidget {
   const SosScreen({super.key});
 
@@ -40,23 +47,238 @@ class SosScreen extends StatefulWidget {
 class _SosScreenState extends State<SosScreen> {
   bool _sosActive = false;
 
-  void _triggerSos() {
-    setState(() => _sosActive = true);
-    showModalBottomSheet(
-      context: context,
-      isDismissible: false,
-      enableDrag: false,
-      backgroundColor: Colors.transparent,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) => _SosSentSheet(
-        onClose: () {
-          Navigator.of(context).pop();
-          setState(() => _sosActive = false);
-        },
-      ),
+  /// Opens the default SMS app pre-filled with [message], addressed to
+  /// every number in [phoneNumbers].
+  Future<void> sendSmsViaDefaultApp(
+    List<String> phoneNumbers,
+    String message,
+  ) async {
+    final recipients = phoneNumbers.join(',');
+
+    final intent = AndroidIntent(
+      action: 'android.intent.action.SENDTO',
+      data: 'smsto:$recipients',
+      arguments: <String, dynamic>{
+        'sms_body': message,
+      },
     );
+
+    try {
+      await intent.launch();
+      print("📱 Opening SMS app for: $recipients");
+    } catch (e) {
+      print("❌ Could not open SMS app: $e");
+    }
+  }
+
+  Future<void> _triggerSos() async {
+    if (_sosActive) return;
+
+    setState(() => _sosActive = true);
+
+    // 📍 Check location service
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+
+    if (!serviceEnabled) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("📍 Please turn on your location."),
+          ),
+        );
+      }
+      setState(() => _sosActive = false);
+      return;
+    }
+
+    // 📍 Check location permission
+    LocationPermission permission = await Geolocator.checkPermission();
+
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("📍 Location permission is required."),
+          ),
+        );
+      }
+      setState(() => _sosActive = false);
+      return;
+    }
+
+    try {
+      // 📍 Get current location
+      Position position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+
+      // 👤 Get logged-in user
+      final user = await SessionManager.getUserDetails();
+      final userId = user["user_id"];
+
+      if (userId == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Unable to identify the logged-in user."),
+            ),
+          );
+        }
+        setState(() => _sosActive = false);
+        return;
+      }
+
+      // 👥 Get emergency contacts
+      final contactResponse = await ApiService.getEmergencyContacts(
+        userId: userId,
+      );
+
+      print("👥 Emergency Contacts:");
+      print(contactResponse);
+
+      // 🚨 Save SOS to backend
+      final sosResponse = await ApiService.sendSos(
+        userId: userId,
+        latitude: position.latitude,
+        longitude: position.longitude,
+        locationAddress: "${position.latitude}, ${position.longitude}",
+      );
+
+      print("🚨 SOS Response:");
+      print(sosResponse);
+
+      // ❌ Check backend result
+      if (sosResponse["success"] != true) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(sosResponse["message"] ?? "Failed to send SOS."),
+            ),
+          );
+        }
+        setState(() => _sosActive = false);
+        return;
+      }
+
+      // 🚨 Emergency message
+      final String emergencyMessage = '''
+🚨 EMERGENCY ALERT! 🚨
+
+I may need immediate help.
+
+📍 My current location:
+https://www.google.com/maps?q=${position.latitude},${position.longitude}
+
+Please contact me or send help immediately.
+''';
+
+      // Show a brief location confirmation popup before handing off to SMS
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) {
+            return AlertDialog(
+              title: const Text(
+                "🚨 SOS Activated",
+                textAlign: TextAlign.center,
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.location_on, color: Colors.red, size: 50),
+                  const SizedBox(height: 15),
+                  const Text(
+                    "Emergency location detected",
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    "Latitude: ${position.latitude}",
+                    textAlign: TextAlign.center,
+                  ),
+                  Text(
+                    "Longitude: ${position.longitude}",
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 15),
+                  const Text(
+                    "Preparing emergency message...",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+
+        await Future.delayed(const Duration(seconds: 4));
+
+        if (mounted && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      }
+
+      // 📱 Open SMS app for emergency contacts
+      if (contactResponse["success"] == true) {
+        final contacts = contactResponse["contacts"];
+
+        if (contacts != null && contacts.isNotEmpty) {
+          List<String> phoneNumbers = [];
+
+          for (final contact in contacts) {
+            String phoneNumber = contact["phone"].toString().trim();
+
+            // Remove spaces and hyphens
+            phoneNumber = phoneNumber.replaceAll(RegExp(r'[\s-]'), '');
+
+            // Add India country code
+            if (!phoneNumber.startsWith("+91")) {
+              if (phoneNumber.startsWith("91") && phoneNumber.length == 12) {
+                phoneNumber = "+$phoneNumber";
+              } else {
+                phoneNumber = "+91$phoneNumber";
+              }
+            }
+
+            phoneNumbers.add(phoneNumber);
+          }
+
+          // 📱 Open SMS once with ALL emergency contacts
+          await sendSmsViaDefaultApp(phoneNumbers, emergencyMessage);
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("No emergency contacts found.")),
+            );
+          }
+        }
+      }
+
+      if (mounted) {
+        setState(() => _sosActive = false);
+      }
+    } catch (e) {
+      print("SOS ERROR: $e");
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('SOS failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() => _sosActive = false);
+      }
+    }
   }
 
   /// Opens the phone's dialer pre-filled with [number]. This only opens
@@ -179,10 +401,10 @@ class _SosScreenState extends State<SosScreen> {
                 ),
                 const SizedBox(height: 14),
                 _QuickActionCard(
-                  icon: Icons.share_location_rounded,
-                  label: 'Share Live Location',
+                  icon: Icons.local_gas_station_rounded,
+                  label: 'Quick Fuel',
                   color: _RRColors.beaconAmber,
-                  onTap: () {},
+                  onTap: () => _callNumber(_EmergencyNumbers.fuel),
                 ),
               ],
             ),
@@ -276,6 +498,9 @@ class _QuickActionCard extends StatelessWidget {
   }
 }
 
+/// Retained bottom-sheet confirmation UI. Not currently wired into
+/// `_triggerSos` (which now shows an AlertDialog instead), but kept
+/// here in case you want to swap the confirmation UI back to this style.
 class _SosSentSheet extends StatelessWidget {
   final VoidCallback onClose;
   const _SosSentSheet({required this.onClose});

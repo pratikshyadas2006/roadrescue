@@ -56,19 +56,21 @@ if (mysqli_stmt_execute($stmt)) {
         ";
 
         $notification_stmt = mysqli_prepare($conn, $notification_query);
-        mysqli_stmt_bind_param(
-            $notification_stmt,
-            "iis",
-            $sos_id,
-            $contact['contact_id'],
-            $message
-        );
+        if ($notification_stmt) {
+            mysqli_stmt_bind_param(
+                $notification_stmt,
+                "iis",
+                $sos_id,
+                $contact['contact_id'],
+                $message
+            );
 
-        if (mysqli_stmt_execute($notification_stmt)) {
-            $notification_count++;
+            if (mysqli_stmt_execute($notification_stmt)) {
+                $notification_count++;
+            }
+
+            mysqli_stmt_close($notification_stmt);
         }
-
-        mysqli_stmt_close($notification_stmt);
     }
 
     mysqli_stmt_close($contacts_stmt);

@@ -299,7 +299,7 @@ void detectPossibleAccident() {
                     accidentDetected = false;
                   });
 
-                  handleEmergency();
+                showEmergencyDetailsThenSend();
                 }
               },
             );
@@ -388,7 +388,7 @@ void detectPossibleAccident() {
                     accidentDetected = false;
                   });
 
-                  handleEmergency();
+                  showEmergencyDetailsThenSend();
                 },
                 child: const Text("SEND HELP"),
               ),
@@ -400,12 +400,14 @@ void detectPossibleAccident() {
   );
 }
 Future<void> sendSmsViaDefaultApp(
-  String phoneNumber,
+  List<String> phoneNumbers,
   String message,
 ) async {
+  final recipients = phoneNumbers.join(',');
+
   final intent = AndroidIntent(
     action: 'android.intent.action.SENDTO',
-    data: 'smsto:$phoneNumber',
+    data: 'smsto:$recipients',
     arguments: <String, dynamic>{
       'sms_body': message,
     },
@@ -413,11 +415,79 @@ Future<void> sendSmsViaDefaultApp(
 
   try {
     await intent.launch();
-    print("📱 Opening default SMS app for: $phoneNumber");
+    print("📱 Opening SMS app for: $recipients");
   } catch (e) {
     print("❌ Could not open SMS app: $e");
   }
 }
+Future<void> showEmergencyDetailsThenSend() async {
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) {
+      return const AlertDialog(
+        title: Text(
+          "🚨 Emergency Alert",
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.warning_amber_rounded,
+              color: Colors.red,
+              size: 50,
+            ),
+
+            SizedBox(height: 15),
+
+            Text(
+              "Possible accident detected!",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            SizedBox(height: 15),
+
+            Text(
+              "📡 Sudden impact detected by sensors",
+              textAlign: TextAlign.center,
+            ),
+
+            SizedBox(height: 8),
+
+            Text(
+              "📍 Location detected",
+              textAlign: TextAlign.center,
+            ),
+
+            SizedBox(height: 8),
+
+            Text(
+              "Opening emergency messages...",
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    },
+  );
+
+  // Wait for 4 seconds
+  await Future.delayed(const Duration(seconds: 4));
+
+  // Close this popup
+  if (mounted && Navigator.of(context).canPop()) {
+    Navigator.of(context).pop();
+  }
+
+  // Start emergency process
+  await handleEmergency();
+}
+
 Future<void> handleEmergency() async {
 
   print("🚨 HANDLE EMERGENCY STARTED");
@@ -510,30 +580,39 @@ print(contactResponse);
 if (contactResponse["success"] == true) {
   final contacts = contactResponse["contacts"];
 
+  List<String> phoneNumbers = [];
+
   for (final contact in contacts) {
     String phoneNumber = contact["phone"].toString().trim();
 
     // Remove spaces and hyphens
-    phoneNumber = phoneNumber.replaceAll(RegExp(r'[\s-]'), '');
+    phoneNumber = phoneNumber.replaceAll(
+      RegExp(r'[\s-]'),
+      '',
+    );
 
-    // Add India country code if needed
+    // Add India country code
     if (!phoneNumber.startsWith("+91")) {
-      if (phoneNumber.startsWith("91") && phoneNumber.length == 12) {
+      if (phoneNumber.startsWith("91") &&
+          phoneNumber.length == 12) {
         phoneNumber = "+$phoneNumber";
       } else {
         phoneNumber = "+91$phoneNumber";
       }
     }
 
-    print("📱 Attempting SMS to: $phoneNumber");
-
-    await sendSmsViaDefaultApp(
-  phoneNumber,
-  emergencyMessage,
-);
+    phoneNumbers.add(phoneNumber);
   }
-}
-// 🚨 Send emergency alert to backend
+
+  // 📱 Open SMS app ONCE with all emergency contacts
+  if (phoneNumbers.isNotEmpty) {
+    await sendSmsViaDefaultApp(
+      phoneNumbers,
+      emergencyMessage,
+    );
+  }
+}// 🚨 Send emergency alert to backend
+
 final sosResponse = await ApiService.sendSos(
   userId: userId,
   latitude: position.latitude,
